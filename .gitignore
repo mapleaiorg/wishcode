@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+
+# Generated application output
+dist/
+dist-electron/
+release/
+out/
+coverage/
+.vite/
+
+# TypeScript and source-map build artifacts
+*.tsbuildinfo
+
+# Packaging artifacts and temporary icon generation
+build/icon.iconset/
+*.blockmap
+*.dmg
+*.exe
+*.AppImage
+*.deb
+*.zip
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+
+# Local OpeniBank runtime state if redirected into the repo
+.ibank/
+.openibank/
+
+# Logs and temporary files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.tmp/
+tmp/
+temp/
+.cache/
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

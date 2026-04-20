@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OpeniBank short-mark logo (centered).
+
+  Origin: iBank-Design/LOGOs/SVG/OpeniBank-Logo-S.svg. In the original
+  the two 'b' glyphs are anchored at (16.1, 31.39) and (44.41, 16.89)
+  so the visual midpoint is (30.25, 24.14) — offset from the viewBox
+  center (27.195, 27.195) by roughly (+3.055, -3.055).
+  The wrapping <g transform="translate(-3.055 3.055)"> shifts the full
+  shape so it renders centered on the 54.39 × 54.39 canvas.
+-->
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 54.39 54.39">
+  <defs>
+    <style>
+      .cls-1, .cls-2 { letter-spacing: -.34em; }
+      .cls-1, .cls-2, .cls-3, .cls-4 {
+        font-family: Impact, Impact;
+        font-size: 38.27px;
+      }
+      .cls-1, .cls-3 { fill: none; stroke: #fff; stroke-miterlimit: 10; }
+      .cls-2, .cls-4 { fill: #231f20; }
+    </style>
+  </defs>
+  <g id="Layer_1-2" data-name="Layer 1">
+    <g transform="translate(-3.055 3.055)">
+      <g>
+        <text class="cls-4" transform="translate(16.1 31.39) rotate(45)"><tspan x="0" y="0">b</tspan></text>
+        <text class="cls-2" transform="translate(44.41 16.89) rotate(-135)"><tspan x="0" y="0">b</tspan></text>
+      </g>
+      <g>
+        <text class="cls-4" transform="translate(16.1 31.39) rotate(45)"><tspan x="0" y="0">b</tspan></text>
+        <text class="cls-2" transform="translate(44.41 16.89) rotate(-135)"><tspan x="0" y="0">b</tspan></text>
+      </g>
+      <g>
+        <text class="cls-3" transform="translate(16.1 31.39) rotate(45)"><tspan x="0" y="0">b</tspan></text>
+        <text class="cls-1" transform="translate(44.41 16.89) rotate(-135)"><tspan x="0" y="0">b</tspan></text>
+      </g>
+    </g>
+  </g>
+</svg>

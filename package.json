@@ -1,0 +1,98 @@
+{
+  "name": "ibank-desktop",
+  "productName": "OpeniBank",
+  "private": true,
+  "version": "0.3.1",
+  "description": "iBank Desktop — AI-driven crypto banking companion. Native chat, non-custodial wallet, trading desk, and market intelligence for macOS, Windows, and Linux.",
+  "main": "dist-electron/main.js",
+  "type": "module",
+  "author": {
+    "name": "OpeniBank Research Team",
+    "email": "hello@openibank.com"
+  },
+  "license": "Proprietary",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/openibank/openibank-desk.git"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:electron": "tsc -p electron/tsconfig.json && cp electron/dist-package.json dist-electron/package.json",
+    "start": "npm run build && npm run build:electron && node scripts/patch-dev-name.js && electron .",
+    "electron:dev": "npm run build:electron && node scripts/patch-dev-name.js && NODE_ENV=development electron .",
+    "housekeeping:check": "node scripts/check-housekeeping.mjs",
+    "typecheck": "tsc --noEmit && tsc -p electron/tsconfig.json --noEmit",
+    "patch:dev-name": "node scripts/patch-dev-name.js",
+    "package:mac": "npm run build && npm run build:electron && electron-builder --mac",
+    "package:win": "npm run build && npm run build:electron && electron-builder --win",
+    "package:linux": "npm run build && npm run build:electron && electron-builder --linux",
+    "postinstall": "electron-builder install-app-deps && node scripts/patch-dev-name.js"
+  },
+  "dependencies": {
+    "@noble/ciphers": "^1.0.0",
+    "@noble/curves": "^1.6.0",
+    "@noble/hashes": "^1.5.0",
+    "@scure/base": "^1.1.9",
+    "@scure/bip32": "^1.5.0",
+    "@radix-ui/react-dialog": "^1.1.2",
+    "@radix-ui/react-dropdown-menu": "^2.1.2",
+    "@radix-ui/react-popover": "^1.1.2",
+    "@radix-ui/react-scroll-area": "^1.2.1",
+    "@radix-ui/react-separator": "^1.1.0",
+    "@radix-ui/react-tabs": "^1.1.1",
+    "@radix-ui/react-tooltip": "^1.1.3",
+    "bip32": "^5.0.0-rc.0",
+    "bip39": "^3.1.0",
+    "ethers": "^6.13.4",
+    "framer-motion": "^11.11.0",
+    "lucide-react": "^0.454.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1",
+    "rehype-raw": "^7.0.0",
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.0",
+    "shiki": "^1.22.2",
+    "tiny-secp256k1": "^2.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "electron": "^32.0.0",
+    "electron-builder": "^25.0.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.4.0"
+  },
+  "build": {
+    "appId": "ai.hermon.ibank.desktop",
+    "productName": "OpeniBank",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.finance",
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "icon": "build/icon.icns",
+      "hardenedRuntime": false
+    },
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "build/icon.png",
+      "category": "Finance"
+    }
+  }
+}

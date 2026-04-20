@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpeniBank</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <script>
+      try {
+        const choice = localStorage.getItem('ibank.theme') || 'system'
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        const resolved = choice === 'system' ? (prefersDark ? 'dark' : 'light') : choice
+        document.documentElement.setAttribute('data-theme', resolved)
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

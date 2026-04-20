@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OpeniBank app icon source.
+
+  This matches the renderer short-mark used in `src/components/Logo.tsx`,
+  which is itself derived from the provided OpeniBank short-logo asset.
+  Keeping this centered blue mark on a transparent canvas avoids the older
+  synthesized blue tile and keeps the dock/app icon consistent with the
+  in-app home chat mark.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <g transform="translate(512 512) scale(12.4)">
+    <g transform="translate(-27.195 -27.195)">
+      <g transform="translate(-3.055 3.055)" fill="#1a6dff">
+        <text
+          style="font-family: Impact, Impact; font-size: 38.27px; letter-spacing: -0.34em;"
+          transform="translate(16.1 31.39) rotate(45)"
+        >
+          <tspan x="0" y="0">b</tspan>
+        </text>
+        <text
+          style="font-family: Impact, Impact; font-size: 38.27px; letter-spacing: -0.34em;"
+          transform="translate(44.41 16.89) rotate(-135)"
+        >
+          <tspan x="0" y="0">b</tspan>
+        </text>
+      </g>
+    </g>
+  </g>
+</svg>
