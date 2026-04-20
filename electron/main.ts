@@ -1,5 +1,5 @@
 /**
- * iBank Desktop — Electron Main Process (native v0.3.1)
+ * iBank Desktop — Electron Main Process (native v0.4.0)
  *
  * The CLI-spawn bridge (v0.2.5) has been removed.  Every feature that
  * previously went over JSON-RPC to the CLI now runs in-process under
@@ -37,7 +37,7 @@ app.setName('OpeniBank')
 app.setAboutPanelOptions({
   applicationName: 'OpeniBank',
   applicationVersion: IBANK_VERSION,
-  copyright: '© 2026 OpeniBank Research Team',
+  copyright: '© 2026 OpeniBank',
 })
 
 let mainWindow: BrowserWindow | null = null

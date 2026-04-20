@@ -13,6 +13,7 @@ import {
   LayoutDashboard, PieChart, History, LineChart, Coins,
   Bell, ArrowRightLeft, Download, Contact2, MoreHorizontal,
   Pencil, Pin, PinOff, Trash2,
+  GraduationCap,
 } from 'lucide-react'
 import type { Conversation } from '../types'
 import type { ViewKey } from '../App'
@@ -44,6 +45,7 @@ const VIEWS: Array<{ id: ViewKey; label: string; icon: React.ReactNode }> = [
   { id: 'swap',              label: 'Swap',              icon: <ArrowRightLeft size={14} /> },
   { id: 'addressBook',       label: 'Address Book',      icon: <Contact2 size={14} /> },
   { id: 'exports',           label: 'Exports',           icon: <Download size={14} /> },
+  { id: 'educator',          label: 'Educator',          icon: <GraduationCap size={14} /> },
   { id: 'nft',               label: 'NFTs',              icon: <ImageIcon size={14} /> },
   { id: 'cryptoBuddies',     label: 'CryptoBuddies',     icon: <Sparkles size={14} /> },
   { id: 'financialBuddies',  label: 'FinancialBuddies',  icon: <Users size={14} /> },

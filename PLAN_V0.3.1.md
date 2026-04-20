@@ -1,8 +1,8 @@
-# iBank Desktop v0.3.1 — AI-native Self-custody Intelligence Wallet
+# iBank Desktop v0.4.0 — AI-native Self-custody Intelligence Wallet
 
 > Source of truth: `/Users/wenyan/Project2026/ibank/AI-native self-custody
 > intelligence wallet.docx`. This document is the upgrade plan anchored to
-> the existing `ibank-desktop-v0.3.1` Electron + Vite repo.
+> the existing `ibank-desktop-v0.4.0` Electron + Vite repo.
 
 ---
 
@@ -89,7 +89,7 @@ The repo is already substantial — here is what exists and what is missing.
 
 ---
 
-## 4. Target screen map (v0.3.1)
+## 4. Target screen map (v0.4.0)
 
 Primary left-rail navigation, in order:
 

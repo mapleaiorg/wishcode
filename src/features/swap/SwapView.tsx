@@ -2,12 +2,12 @@
  * SwapView — quote input + disclosed third-party routing + unsigned-tx
  * preview.
  *
- * v0.3.1 boundary: this view does **not** yet build a signed swap
+ * v0.4.0 boundary: this view does **not** yet build a signed swap
  * transaction. It computes a quote from the existing `trading.prices`
  * (price ratio), shows the route and provider fully, and renders a
  * "Route disclosure" card with the exact provider + URL the user would
  * be sending their assets to. A real router integration is a future
- * native module (see PLAN_V0.3.1.md §8 "Out of scope").
+ * native module (see PLAN_v0.4.0.md §8 "Out of scope").
  *
  * This is intentional: iBank's product boundary says the LLM/app may
  * **prepare**, never execute silently. So we show the full disclosure,

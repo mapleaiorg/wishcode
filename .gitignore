@@ -43,6 +43,19 @@ temp/
 
 # Editor and OS noise
 .DS_Store
+._*
 Thumbs.db
 .idea/
 .vscode/
+.history/
+*.swp
+*.swo
+*~
+
+# Local agent / tooling state
+.claude/
+.cursor/
+.aider*
+
+# npm pack artifacts
+*.tgz

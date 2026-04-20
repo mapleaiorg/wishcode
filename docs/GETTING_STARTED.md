@@ -51,7 +51,6 @@ This command builds the renderer, builds the Electron main/preload process, patc
 ## Validate Before Pushing
 
 ```bash
-npm run housekeeping:check
 npm run typecheck
 npm run build
 npm run build:electron
@@ -82,4 +81,8 @@ Do not copy local runtime state, tokens, or wallet materials into the repository
 - Repository owner: OpeniBank Research Team
 - License status: Proprietary, internal use only
 
-See [`LICENSE.md`](/Users/wenyan/ClaudeProjects/ibank-desktop-v0.3.1/LICENSE.md) for the repository notice.
+See [`../LICENSE.md`](../LICENSE.md) for the repository notice.
+
+## Explore The Educator
+
+Starting in `v0.4.0` the sidebar includes an **Educator** entry (graduation-cap icon) that opens a Duolingo-style blockchain and crypto learning module. See [`EDUCATOR.md`](./EDUCATOR.md) for the developer-facing overview: content authoring, state model, compliance boundary, and the Phase 1 / 2 / 3 rollout.

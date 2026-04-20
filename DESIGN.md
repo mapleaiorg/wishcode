@@ -1,4 +1,4 @@
-# iBank Desktop v0.3.1 — Design Document
+# iBank Desktop v0.4.0 — Design Document
 
 > "Make iBank the most advanced and powerful crypto banking AI agent in
 > the world, dominating the future financial and crypto market."

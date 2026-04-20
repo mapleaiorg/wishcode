@@ -38,6 +38,7 @@ import { AlertsView } from './features/alerts/AlertsView'
 import { SwapView } from './features/swap/SwapView'
 import { ExportsView } from './features/exports/ExportsView'
 import { AddressBookView } from './features/addressBook/AddressBookView'
+import { EducatorView } from './features/educator/EducatorView'
 import { ModelPicker } from './components/ModelPicker'
 import { LogoLong } from './components/LogoLong'
 import { Logo } from './components/Logo'
@@ -47,6 +48,7 @@ import { useTheme } from './hooks/useTheme'
 export type ViewKey =
   | 'home' | 'chat' | 'wallet' | 'portfolio' | 'history'
   | 'market' | 'tokens' | 'alerts' | 'swap' | 'exports' | 'addressBook'
+  | 'educator'
   | 'nft' | 'cryptoBuddies' | 'financialBuddies' | 'harness'
 
 type Overlay = 'none' | 'settings' | 'login'
@@ -63,6 +65,7 @@ const VIEW_TITLES: Record<ViewKey, string> = {
   swap: 'Swap',
   exports: 'Exports',
   addressBook: 'Address Book',
+  educator: 'Educator',
   nft: 'NFTs',
   cryptoBuddies: 'CryptoBuddies',
   financialBuddies: 'FinancialBuddies',
@@ -397,6 +400,7 @@ export const App: React.FC = () => {
             {view === 'swap'              && <SwapView />}
             {view === 'exports'           && <ExportsView />}
             {view === 'addressBook'       && <AddressBookView />}
+            {view === 'educator'          && <EducatorView />}
             {view === 'nft'               && <NftGallery />}
             {view === 'cryptoBuddies'     && <CryptoBuddiesView />}
             {view === 'financialBuddies'  && <FinancialBuddiesView />}

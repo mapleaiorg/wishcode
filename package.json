@@ -1,27 +1,21 @@
 {
   "name": "ibank-desktop",
   "productName": "OpeniBank",
-  "private": true,
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "iBank Desktop — AI-driven crypto banking companion. Native chat, non-custodial wallet, trading desk, and market intelligence for macOS, Windows, and Linux.",
   "main": "dist-electron/main.js",
   "type": "module",
   "author": {
-    "name": "OpeniBank Research Team",
+    "name": "OpeniBank",
     "email": "hello@openibank.com"
   },
   "license": "Proprietary",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/openibank/openibank-desk.git"
-  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "build:electron": "tsc -p electron/tsconfig.json && cp electron/dist-package.json dist-electron/package.json",
     "start": "npm run build && npm run build:electron && node scripts/patch-dev-name.js && electron .",
     "electron:dev": "npm run build:electron && node scripts/patch-dev-name.js && NODE_ENV=development electron .",
-    "housekeeping:check": "node scripts/check-housekeeping.mjs",
     "typecheck": "tsc --noEmit && tsc -p electron/tsconfig.json --noEmit",
     "patch:dev-name": "node scripts/patch-dev-name.js",
     "package:mac": "npm run build && npm run build:electron && electron-builder --mac",

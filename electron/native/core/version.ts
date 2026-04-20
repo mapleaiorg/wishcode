@@ -6,7 +6,7 @@
  * OAuth tokens to fall back to the generic API quota pool (~2–3 req/min).
  */
 
-export const IBANK_VERSION = '0.3.1'
+export const IBANK_VERSION = '0.4.0'
 
 /**
  * User-Agent string sent on every Anthropic request.
