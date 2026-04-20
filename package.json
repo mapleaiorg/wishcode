@@ -1,7 +1,7 @@
 {
   "name": "ibank-desktop",
   "productName": "OpeniBank",
-  "version": "0.4.0",
+  "version": "0.1.5",
   "description": "iBank Desktop — AI-driven crypto banking companion. Native chat, non-custodial wallet, trading desk, and market intelligence for macOS, Windows, and Linux.",
   "main": "dist-electron/main.js",
   "type": "module",
@@ -75,16 +75,20 @@
     ],
     "mac": {
       "category": "public.app-category.finance",
-      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] },
+        { "target": "zip", "arch": ["arm64", "x64"] }
+      ],
       "icon": "build/icon.icns",
-      "hardenedRuntime": false
+      "hardenedRuntime": false,
+      "identity": null
     },
     "win": {
-      "target": ["nsis"],
-      "icon": "build/icon.ico"
+      "target": [{ "target": "zip", "arch": ["x64"] }],
+      "icon": "build/icon.png"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [{ "target": "AppImage", "arch": ["x64", "arm64"] }],
       "icon": "build/icon.png",
       "category": "Finance"
     }
