@@ -114,14 +114,6 @@ export function startBuddy(): void {
     set('worried', 'Something went wrong', 3)
     note('error', typeof p?.error === 'string' ? p.error.slice(0, 140) : 'Error')
   })
-  on('wallet.lockChanged', (p: any) => {
-    if (p?.unlocked) {
-      set('smiling', 'Wallet unlocked', 1)
-      note('success', 'Wallet unlocked — auto-locks after 15 min idle.')
-    } else {
-      set('alert', 'Wallet locked', 2)
-    }
-  })
   on('tasks.changed', (p: any) => {
     if (p?.runningCount > 0) set('working', `${p.runningCount} running task${p.runningCount > 1 ? 's' : ''}`, 2)
     else set('idle', '', 0)

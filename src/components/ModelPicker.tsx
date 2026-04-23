@@ -4,9 +4,9 @@
  *
  * Providers are surfaced in an order that matches the product's
  * "local-first, then cloud" narrative:
- *   Ollama → OpenAI → Anthropic → xAI → Gemini → OpeniBank
+ *   Ollama → Anthropic → OpenAI → xAI → Gemini → Hermon
  *
- * Selecting a row calls `window.ibank.model.set(provider, model)` and
+ * Selecting a row calls `window.wish.model.set(provider, model)` and
  * closes the overlay. If nothing is available (no keys, no Ollama) we
  * show a gentle nudge toward /Login.
  */
@@ -21,14 +21,14 @@ interface Props {
   onRequestLogin(): void
 }
 
-const PROVIDER_ORDER: Provider[] = ['ollama', 'anthropic', 'openai', 'xai', 'gemini', 'openibank']
+const PROVIDER_ORDER: Provider[] = ['ollama', 'anthropic', 'openai', 'xai', 'gemini', 'hermon']
 const PROVIDER_LABEL: Record<Provider, string> = {
   ollama:    'Ollama (local)',
   anthropic: 'Anthropic',
   openai:    'OpenAI',
   xai:       'xAI (Grok)',
   gemini:    'Google Gemini',
-  openibank: 'OpeniBank',
+  hermon:    'Hermon',
 }
 
 export function ModelPicker({ current, onChanged, onRequestLogin }: Props) {
@@ -39,10 +39,21 @@ export function ModelPicker({ current, onChanged, onRequestLogin }: Props) {
   const anchorRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
+  // Mirror backend `model.changed` events locally as well so the trigger
+  // button re-renders even if the parent's `current` prop somehow stays
+  // stale (e.g. a mid-chat provider-normalization race). Belt-and-suspenders
+  // alongside the parent's own subscription.
+  useEffect(() => {
+    const unsub = window.wish?.model.onChanged?.((p) => {
+      onChanged({ provider: p.to.provider as any, model: p.to.model })
+    })
+    return () => { unsub?.() }
+  }, [onChanged])
+
   const refresh = useCallback(async () => {
     setLoading(true); setErr(null)
     try {
-      const res: any = await window.ibank?.model.list()
+      const res: any = await window.wish?.model.list()
       const list: ModelEntry[] = Array.isArray(res) ? res : (res?.available ?? [])
       setModels(list)
     } catch (e: any) { setErr(e?.message ?? String(e)) }
@@ -77,8 +88,21 @@ export function ModelPicker({ current, onChanged, onRequestLogin }: Props) {
 
   const pick = useCallback(async (m: ModelEntry) => {
     try {
-      await window.ibank.model.set(m.provider, m.model)
-      onChanged({ provider: m.provider, model: m.model })
+      await window.wish.model.set(m.provider, m.model)
+      // Re-read the canonical current model from the backend. The backend
+      // may normalize the provider (e.g. an ollama tag with `:cloud`) or
+      // re-infer it, so we trust *its* view rather than echoing what we
+      // clicked. Without this, rapid ollama→ollama switches (where only
+      // the model name changes, not the provider) could leave the header
+      // stuck on the previous tag if the optimistic update lost a race
+      // with the backend `model.changed` broadcast.
+      try {
+        const cur = (await window.wish.model.current()) as CurrentModel
+        if (cur?.provider && cur?.model) onChanged(cur)
+        else onChanged({ provider: m.provider, model: m.model })
+      } catch {
+        onChanged({ provider: m.provider, model: m.model })
+      }
       setOpen(false)
     } catch (e: any) { setErr(e?.message ?? String(e)) }
   }, [onChanged])
@@ -87,7 +111,7 @@ export function ModelPicker({ current, onChanged, onRequestLogin }: Props) {
     <div style={{ position: 'relative' }}>
       <button
         ref={anchorRef}
-        className="ibn-model-btn"
+        className="wsh-model-btn"
         onClick={() => setOpen((v) => !v)}
         title="Switch model"
       >
@@ -100,7 +124,7 @@ export function ModelPicker({ current, onChanged, onRequestLogin }: Props) {
       {open && (
         <div
           ref={panelRef}
-          className="ibn-card"
+          className="wsh-card"
           style={{
             position: 'absolute', top: 'calc(100% + 6px)', right: 0,
             width: 360, maxHeight: 460, overflowY: 'auto',
@@ -118,7 +142,7 @@ export function ModelPicker({ current, onChanged, onRequestLogin }: Props) {
               <p style={{ fontSize: 12, color: 'var(--text-mute)', margin: '8px 0' }}>
                 Install Ollama for a local model, or sign in to a cloud provider.
               </p>
-              <button className="ibn-btn primary" onClick={() => { setOpen(false); onRequestLogin() }}>
+              <button className="wsh-btn primary" onClick={() => { setOpen(false); onRequestLogin() }}>
                 <LogIn size={12} /> Open Login
               </button>
             </div>
@@ -127,14 +151,14 @@ export function ModelPicker({ current, onChanged, onRequestLogin }: Props) {
             const list = grouped.get(p)
             if (!list || list.length === 0) return null
             return (
-              <div key={p} className="ibn-models-group">
-                <div className="ibn-models-group-label">{PROVIDER_LABEL[p]}</div>
+              <div key={p} className="wsh-models-group">
+                <div className="wsh-models-group-label">{PROVIDER_LABEL[p]}</div>
                 {list.map((m) => {
                   const active = current && current.provider === m.provider && current.model === m.model
                   return (
                     <button
                       key={`${m.provider}:${m.model}`}
-                      className={`ibn-model-row ${active ? 'selected' : ''}`}
+                      className={`wsh-model-row ${active ? 'selected' : ''}`}
                       onClick={() => void pick(m)}
                     >
                       <div style={{ flex: 1, minWidth: 0 }}>

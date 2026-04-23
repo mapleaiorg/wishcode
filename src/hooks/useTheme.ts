@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 export type ThemeChoice = 'light' | 'dark' | 'system'
 export type ResolvedTheme = 'light' | 'dark'
 
-const STORAGE_KEY = 'ibank.theme'
+const STORAGE_KEY = 'wsh.theme'
 
 function readChoice(): ThemeChoice {
   try {

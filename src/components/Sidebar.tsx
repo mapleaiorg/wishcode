@@ -8,12 +8,9 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import {
-  MessageSquare, Wallet, Image as ImageIcon,
-  Sparkles, Users, FlaskConical,
-  LayoutDashboard, PieChart, History, LineChart, Coins,
-  Bell, ArrowRightLeft, Download, Contact2, MoreHorizontal,
+  MessageSquare,
+  LayoutDashboard, History, MoreHorizontal,
   Pencil, Pin, PinOff, Trash2,
-  GraduationCap,
 } from 'lucide-react'
 import type { Conversation } from '../types'
 import type { ViewKey } from '../App'
@@ -34,22 +31,9 @@ interface Props {
 type MenuState = { conversationId: string; x: number; y: number } | null
 
 const VIEWS: Array<{ id: ViewKey; label: string; icon: React.ReactNode }> = [
-  { id: 'home',              label: 'Home',              icon: <LayoutDashboard size={14} /> },
-  { id: 'chat',              label: 'Chat',              icon: <MessageSquare size={14} /> },
-  { id: 'wallet',            label: 'Wallet',            icon: <Wallet size={14} /> },
-  { id: 'portfolio',         label: 'Portfolio',         icon: <PieChart size={14} /> },
-  { id: 'history',           label: 'History',           icon: <History size={14} /> },
-  { id: 'market',            label: 'Market',            icon: <LineChart size={14} /> },
-  { id: 'tokens',            label: 'Tokens',            icon: <Coins size={14} /> },
-  { id: 'alerts',            label: 'Alerts',            icon: <Bell size={14} /> },
-  { id: 'swap',              label: 'Swap',              icon: <ArrowRightLeft size={14} /> },
-  { id: 'addressBook',       label: 'Address Book',      icon: <Contact2 size={14} /> },
-  { id: 'exports',           label: 'Exports',           icon: <Download size={14} /> },
-  { id: 'educator',          label: 'Educator',          icon: <GraduationCap size={14} /> },
-  { id: 'nft',               label: 'NFTs',              icon: <ImageIcon size={14} /> },
-  { id: 'cryptoBuddies',     label: 'CryptoBuddies',     icon: <Sparkles size={14} /> },
-  { id: 'financialBuddies',  label: 'FinancialBuddies',  icon: <Users size={14} /> },
-  { id: 'harness',           label: 'Harness',           icon: <FlaskConical size={14} /> },
+  { id: 'home',    label: 'Home',    icon: <LayoutDashboard size={14} /> },
+  { id: 'chat',    label: 'Chat',    icon: <MessageSquare size={14} /> },
+  { id: 'history', label: 'History', icon: <History size={14} /> },
 ]
 
 export function Sidebar({
@@ -140,14 +124,14 @@ export function Sidebar({
 
   return (
     <>
-      <aside className="ibn-sidebar">
-        <div className="ibn-sidebar-scroll">
-          <div className="ibn-sidebar-section">Views</div>
-          <nav className="ibn-sidebar-views">
+      <aside className="wsh-sidebar">
+        <div className="wsh-sidebar-scroll">
+          <div className="wsh-sidebar-section">Views</div>
+          <nav className="wsh-sidebar-views">
             {VIEWS.map((entry) => (
               <button
                 key={entry.id}
-                className={`ibn-sidebar-view ${view === entry.id ? 'active' : ''}`}
+                className={`wsh-sidebar-view ${view === entry.id ? 'active' : ''}`}
                 onClick={() => onSelectView(entry.id)}
               >
                 {entry.icon}
@@ -158,8 +142,8 @@ export function Sidebar({
 
           {view === 'chat' && (
             <>
-              <div className="ibn-sidebar-section">Conversations</div>
-              <div className="ibn-sidebar-list">
+              <div className="wsh-sidebar-section">Conversations</div>
+              <div className="wsh-sidebar-list">
                 {orderedConversations.length === 0 && (
                   <div style={{ color: 'var(--text-mute)', fontSize: 12, padding: '6px 10px' }}>
                     No conversations yet.
@@ -171,7 +155,7 @@ export function Sidebar({
                   return (
                     <div
                       key={conversation.id}
-                      className={`ibn-sidebar-item ${conversation.id === activeId ? 'active' : ''}`}
+                      className={`wsh-sidebar-item ${conversation.id === activeId ? 'active' : ''}`}
                       onClick={() => onSelect(conversation.id)}
                       onContextMenu={(event) => {
                         event.preventDefault()
@@ -180,11 +164,11 @@ export function Sidebar({
                       }}
                     >
                       <MessageSquare size={13} />
-                      <div className="ibn-sidebar-item-main">
+                      <div className="wsh-sidebar-item-main">
                         {isEditing ? (
                           <input
                             autoFocus
-                            className="ibn-sidebar-item-input"
+                            className="wsh-sidebar-item-input"
                             value={draftTitle}
                             onChange={(event) => setDraftTitle(event.target.value)}
                             onClick={(event) => event.stopPropagation()}
@@ -200,19 +184,19 @@ export function Sidebar({
                             }}
                           />
                         ) : (
-                          <span className="ibn-sidebar-item-title">{conversation.title || 'Untitled'}</span>
+                          <span className="wsh-sidebar-item-title">{conversation.title || 'Untitled'}</span>
                         )}
                       </div>
                       {!isEditing && (
-                        <div className="ibn-sidebar-item-meta">
+                        <div className="wsh-sidebar-item-meta">
                           {conversation.pinned && (
-                            <span className="ibn-sidebar-pin" title="Pinned">
+                            <span className="wsh-sidebar-pin" title="Pinned">
                               <Pin size={10} />
                             </span>
                           )}
-                          <span className="ibn-sidebar-date">{formatRelativeDate(lastActive)}</span>
+                          <span className="wsh-sidebar-date">{formatRelativeDate(lastActive)}</span>
                           <button
-                            className="ibn-sidebar-menu-trigger"
+                            className="wsh-sidebar-menu-trigger"
                             onClick={(event) => {
                               event.stopPropagation()
                               const rect = event.currentTarget.getBoundingClientRect()
@@ -232,24 +216,24 @@ export function Sidebar({
           )}
         </div>
 
-        <div className="ibn-sidebar-foot">
+        <div className="wsh-sidebar-foot">
           <Buddy />
         </div>
       </aside>
 
       {menu && menuConversation && (
         <>
-          <div className="ibn-floating-menu-backdrop" onClick={() => setMenu(null)} />
-          <div className="ibn-floating-menu" style={{ left: menu.x, top: menu.y }}>
+          <div className="wsh-floating-menu-backdrop" onClick={() => setMenu(null)} />
+          <div className="wsh-floating-menu" style={{ left: menu.x, top: menu.y }}>
             <button
-              className="ibn-floating-menu-item"
+              className="wsh-floating-menu-item"
               onClick={() => beginRename(menuConversation)}
             >
               <Pencil size={12} />
               <span>Rename</span>
             </button>
             <button
-              className="ibn-floating-menu-item"
+              className="wsh-floating-menu-item"
               onClick={() => {
                 onTogglePin(menuConversation.id)
                 setMenu(null)
@@ -259,7 +243,7 @@ export function Sidebar({
               <span>{menuConversation.pinned ? 'Unpin' : 'Pin'}</span>
             </button>
             <button
-              className="ibn-floating-menu-item danger"
+              className="wsh-floating-menu-item danger"
               onClick={() => handleDelete(menuConversation.id)}
             >
               <Trash2 size={12} />

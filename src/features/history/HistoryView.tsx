@@ -1,35 +1,50 @@
 /**
- * HistoryView — unified transaction list across accounts, with per-chain
- * and direction filters and a one-click "Export CSV" shortcut.
+ * HistoryView — session/conversation history.
  *
- * History rows come from `wallet.history(chain, address)` for each
- * account. We concat + sort by timestamp desc.
+ * Phase 0 stub: tracks session IDs in localStorage as they are used in
+ * Chat, and loads each session's transcript on demand via
+ * `window.wish.session.read`.
+ *
+ * Phase 2+3 will replace this with a proper session index backed by
+ * ~/.wishcode/sessions/.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { History as HistoryIcon, Download, ExternalLink, Filter } from 'lucide-react'
-import type { ChainId, TxEntry, WalletAccount, WalletStatusView } from '../../types'
-import { addExportJob } from '../../lib/localStore'
+import { History as HistoryIcon, Download, Trash2, Filter } from 'lucide-react'
 
-type DirectionFilter = 'all' | 'in' | 'out' | 'self'
+const SESSION_INDEX_KEY = 'wsh.sessions.index'
+
+interface SessionIndexEntry {
+  id: string
+  title: string
+  createdAt: number
+  updatedAt?: number
+  messageCount?: number
+}
+
+function readIndex(): SessionIndexEntry[] {
+  try {
+    const raw = localStorage.getItem(SESSION_INDEX_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch { return [] }
+}
+
+function writeIndex(list: SessionIndexEntry[]): void {
+  try { localStorage.setItem(SESSION_INDEX_KEY, JSON.stringify(list)) } catch {}
+}
 
 function fmtTs(ms?: number): string {
   if (!ms) return '—'
   try {
     const d = new Date(ms)
-    const day = d.toISOString().slice(0, 10)
-    const hm = d.toISOString().slice(11, 16)
-    return `${day} ${hm}`
+    return `${d.toISOString().slice(0, 10)} ${d.toISOString().slice(11, 16)}`
   } catch { return '—' }
 }
 
-function csvEscape(s: string): string {
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
-  return s
-}
-
-function downloadText(filename: string, content: string): void {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' })
+function downloadText(filename: string, content: string, mime: string): void {
+  const blob = new Blob([content], { type: `${mime};charset=utf-8` })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -41,189 +56,145 @@ function downloadText(filename: string, content: string): void {
 }
 
 export function HistoryView() {
-  const [status, setStatus] = useState<WalletStatusView | null>(null)
-  const [accounts, setAccounts] = useState<WalletAccount[]>([])
-  const [rows, setRows] = useState<TxEntry[]>([])
-  const [chainFilter, setChainFilter] = useState<ChainId | 'all'>('all')
-  const [dirFilter, setDirFilter] = useState<DirectionFilter>('all')
-  const [loading, setLoading] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
+  const [sessions, setSessions] = useState<SessionIndexEntry[]>([])
+  const [query,    setQuery]    = useState('')
+  const [busy,     setBusy]     = useState<string | null>(null)
+  const [err,      setErr]      = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
-    setErr(null)
-    setLoading(true)
-    try {
-      const s = (await window.ibank.wallet.status()) as WalletStatusView
-      setStatus(s)
-      const acc = (await window.ibank.wallet.accounts()) as WalletAccount[]
-      setAccounts(acc ?? [])
-      if (!s.unlocked) { setRows([]); return }
-      const all: TxEntry[] = []
-      for (const a of acc ?? []) {
-        try {
-          const r = await window.ibank.wallet.history(a.chain, a.address)
-          for (const row of r ?? []) all.push(row)
-        } catch {}
-      }
-      all.sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
-      setRows(all)
-    } catch (e: any) {
-      setErr(e?.message ?? String(e))
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const refresh = useCallback(() => { setSessions(readIndex()) }, [])
 
-  useEffect(() => {
-    void refresh()
-    const unsub = window.ibank.wallet.onLockChanged?.(() => { void refresh() })
-    return () => unsub?.()
-  }, [refresh])
-
-  const chains = useMemo(
-    () => Array.from(new Set(accounts.map((a) => a.chain))),
-    [accounts],
-  )
+  useEffect(() => { refresh() }, [refresh])
 
   const filtered = useMemo(
-    () => rows.filter((r) => {
-      if (chainFilter !== 'all' && r.chain !== chainFilter) return false
-      if (dirFilter   !== 'all' && r.direction !== dirFilter) return false
-      return true
-    }),
-    [rows, chainFilter, dirFilter],
+    () => sessions.filter((s) =>
+      !query || s.title.toLowerCase().includes(query.toLowerCase()) || s.id.includes(query),
+    ),
+    [sessions, query],
   )
 
-  const exportCsv = useCallback(() => {
-    const header = [
-      'timestamp', 'chain', 'hash', 'direction', 'from', 'to',
-      'amount', 'symbol', 'fee', 'feeSymbol', 'status', 'blockNumber',
-    ].join(',')
-    const body = filtered.map((r) => [
-      r.timestamp ? new Date(r.timestamp).toISOString() : '',
-      r.chain,
-      r.hash,
-      r.direction,
-      r.from,
-      r.to,
-      r.amount,
-      r.symbol,
-      r.feeRaw ?? '',
-      r.feeSymbol ?? '',
-      r.status,
-      r.blockNumber != null ? String(r.blockNumber) : '',
-    ].map(csvEscape).join(',')).join('\n')
-    const csv = `${header}\n${body}\n`
-    const ts = new Date().toISOString().replace(/[:.]/g, '-')
-    downloadText(`ibank-history-${ts}.csv`, csv)
-    addExportJob({
-      kind: 'csv-history',
-      chain: chainFilter,
-      address: accounts.map((a) => a.address).join(';'),
-      fromMs: filtered[filtered.length - 1]?.timestamp ?? 0,
-      toMs:   filtered[0]?.timestamp ?? Date.now(),
-      rows:   filtered.length,
-    })
-  }, [filtered, chainFilter, accounts])
+  const exportSession = useCallback(async (s: SessionIndexEntry, fmt: 'markdown' | 'json') => {
+    setBusy(s.id); setErr(null)
+    try {
+      const path = await window.wish.session.export(s.id, fmt)
+      const ext = fmt === 'markdown' ? 'md' : 'json'
+      // The native export writes to disk; for renderer convenience, also
+      // download a copy by re-reading via session.read.
+      const events = await window.wish.session.read(s.id)
+      const text = fmt === 'json'
+        ? JSON.stringify(events, null, 2)
+        : events.map((e: any) => `### ${e.role ?? e.kind}\n${JSON.stringify(e.content ?? e.summary ?? '', null, 2)}`).join('\n\n')
+      downloadText(`${s.id}.${ext}`, text, fmt === 'json' ? 'application/json' : 'text/markdown')
+      void path // unused in renderer; just avoid lint
+    } catch (e: any) {
+      setErr(e?.message ?? String(e))
+    } finally { setBusy(null) }
+  }, [])
+
+  const clearSession = useCallback(async (id: string) => {
+    setBusy(id); setErr(null)
+    try {
+      await window.wish.session.clear(id)
+      const next = readIndex().filter((s) => s.id !== id)
+      writeIndex(next)
+      setSessions(next)
+    } catch (e: any) {
+      setErr(e?.message ?? String(e))
+    } finally { setBusy(null) }
+  }, [])
 
   return (
-    <div className="ibn-panel">
-      <header className="ibn-panel-head">
+    <div className="wsh-panel">
+      <header className="wsh-panel-head">
         <h2>History</h2>
-        <div className="ibn-panel-head-actions">
-          <button className="ibn-btn" onClick={() => void refresh()}>
+        <div className="wsh-panel-head-actions">
+          <button className="wsh-btn" onClick={refresh}>
             <HistoryIcon size={12} /> Refresh
-          </button>
-          <button
-            className="ibn-btn"
-            onClick={exportCsv}
-            disabled={filtered.length === 0}
-            title="Export filtered rows as CSV"
-          >
-            <Download size={12} /> Export CSV
           </button>
         </div>
       </header>
 
-      <section className="ibn-filter-row">
-        <label className="ibn-filter">
+      <section className="wsh-filter-row">
+        <label className="wsh-filter">
           <Filter size={12} />
-          <span>Chain</span>
-          <select
-            value={chainFilter}
-            onChange={(e) => setChainFilter(e.target.value as ChainId | 'all')}
-          >
-            <option value="all">All chains</option>
-            {chains.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <span>Search</span>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter by title or id…"
+          />
         </label>
-        <label className="ibn-filter">
-          <span>Direction</span>
-          <select
-            value={dirFilter}
-            onChange={(e) => setDirFilter(e.target.value as DirectionFilter)}
-          >
-            <option value="all">All</option>
-            <option value="in">Incoming</option>
-            <option value="out">Outgoing</option>
-            <option value="self">Self</option>
-          </select>
-        </label>
-        <span className="ibn-muted" style={{ marginLeft: 'auto' }}>
-          {filtered.length} of {rows.length} transactions
+        <span className="wsh-muted" style={{ marginLeft: 'auto' }}>
+          {filtered.length} of {sessions.length} sessions
         </span>
       </section>
 
-      {err && <div className="ibn-error-banner">{err}</div>}
-      {loading && <div className="ibn-muted">Loading…</div>}
-      {!status?.unlocked && (
-        <div className="ibn-muted">Unlock your wallet to list transactions.</div>
+      {err && <div className="wsh-error-banner">{err}</div>}
+      {sessions.length === 0 && (
+        <div className="wsh-muted">No sessions yet. Start a conversation in Chat to populate history.</div>
       )}
-      {status?.unlocked && !loading && filtered.length === 0 && (
-        <div className="ibn-muted">No transactions match the current filters.</div>
+      {sessions.length > 0 && filtered.length === 0 && (
+        <div className="wsh-muted">No sessions match the current filter.</div>
       )}
 
-      {status?.unlocked && !loading && filtered.length > 0 && (
-        <table className="ibn-table ibn-table-history">
+      {filtered.length > 0 && (
+        <table className="wsh-table wsh-table-history">
           <thead>
             <tr>
-              <th>Time</th>
-              <th>Chain</th>
-              <th>Dir.</th>
-              <th>Amount</th>
-              <th>Counterparty</th>
-              <th>Status</th>
+              <th>Created</th>
+              <th>Title</th>
+              <th>Session ID</th>
+              <th>Messages</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r) => {
-              const counter = r.direction === 'out' ? r.to : r.from
-              return (
-                <tr key={`${r.chain}-${r.hash}`}>
-                  <td className="ibn-muted">{fmtTs(r.timestamp)}</td>
-                  <td><span className="ibn-chain-pill">{r.chain}</span></td>
-                  <td className={`ibn-dir-cell ibn-dir-${r.direction}`}>{r.direction}</td>
-                  <td>{r.amount} {r.symbol}</td>
-                  <td><code className="ibn-addr">{counter.slice(0, 8)}…{counter.slice(-6)}</code></td>
-                  <td className={`ibn-status-${r.status}`}>{r.status}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    {r.explorerUrl && (
-                      <button
-                        className="ibn-icon-btn"
-                        onClick={() => window.ibank.app.openExternal(r.explorerUrl!)}
-                        title="Open in block explorer"
-                      >
-                        <ExternalLink size={12} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
+            {filtered.map((s) => (
+              <tr key={s.id}>
+                <td className="wsh-muted">{fmtTs(s.createdAt)}</td>
+                <td><strong>{s.title || '(untitled)'}</strong></td>
+                <td><code className="wsh-addr">{s.id.slice(0, 18)}…</code></td>
+                <td>{s.messageCount ?? '—'}</td>
+                <td style={{ textAlign: 'right' }}>
+                  <button
+                    className="wsh-btn wsh-btn-sm"
+                    disabled={busy === s.id}
+                    onClick={() => void exportSession(s, 'markdown')}
+                    title="Export as Markdown"
+                  >
+                    <Download size={11} /> md
+                  </button>
+                  <button
+                    className="wsh-btn wsh-btn-sm"
+                    disabled={busy === s.id}
+                    onClick={() => void exportSession(s, 'json')}
+                    title="Export as JSON"
+                  >
+                    <Download size={11} /> json
+                  </button>
+                  <button
+                    className="wsh-icon-btn"
+                    disabled={busy === s.id}
+                    onClick={() => void clearSession(s.id)}
+                    title="Clear session"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       )}
     </div>
   )
+}
+
+export function recordSession(entry: SessionIndexEntry): void {
+  const cur = readIndex()
+  const idx = cur.findIndex((s) => s.id === entry.id)
+  const next = idx >= 0
+    ? cur.map((s, i) => i === idx ? { ...s, ...entry, updatedAt: Date.now() } : s)
+    : [entry, ...cur].slice(0, 200)
+  writeIndex(next)
 }

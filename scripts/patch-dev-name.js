@@ -23,8 +23,12 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname  = dirname(__filename)
 const REPO_ROOT  = join(__dirname, '..')
 
-const APP_NAME = 'OpeniBank'
-const BUNDLE_ID = 'ai.hermon.ibank.desktop'
+// Display name shown in the macOS menu bar and Dock.
+const DISPLAY_NAME = 'Wish Code'
+// Binary / symlink name — must stay space-free to avoid breaking shell
+// invocations of the dev Electron binary.
+const EXEC_NAME = 'WishCode'
+const BUNDLE_ID = 'ai.hermon.wishcode.desktop'
 
 if (process.platform !== 'darwin') {
   console.log('[patch-dev-name] not macOS — skipping.')
@@ -58,30 +62,30 @@ function replaceKeyValue(key, nextValue) {
   xml = xml.replace(re, (_m, a, _b, c) => `${a}${nextValue}${c}`)
 }
 
-replaceKeyValue('CFBundleName',         APP_NAME)
-replaceKeyValue('CFBundleDisplayName',  APP_NAME)
-replaceKeyValue('CFBundleExecutable',   APP_NAME)
+replaceKeyValue('CFBundleName',         DISPLAY_NAME)
+replaceKeyValue('CFBundleDisplayName',  DISPLAY_NAME)
+replaceKeyValue('CFBundleExecutable',   EXEC_NAME)
 replaceKeyValue('CFBundleIdentifier',   BUNDLE_ID)
 
 if (xml !== before) {
   writeFileSync(plistPath, xml, 'utf8')
-  console.log(`[patch-dev-name] patched Info.plist → ${APP_NAME} (${BUNDLE_ID})`)
+  console.log(`[patch-dev-name] patched Info.plist → "${DISPLAY_NAME}" (${BUNDLE_ID})`)
 } else {
   console.log('[patch-dev-name] Info.plist already patched.')
 }
 
 const macosDir = join(REPO_ROOT, 'node_modules', 'electron', 'dist', 'Electron.app', 'Contents', 'MacOS')
 const fromBin = join(macosDir, 'Electron')
-const toBin   = join(macosDir, APP_NAME)
+const toBin   = join(macosDir, EXEC_NAME)
 const distDir = join(REPO_ROOT, 'node_modules', 'electron', 'dist')
-const aliasApp = join(distDir, `${APP_NAME}.app`)
+const aliasApp = join(distDir, `${EXEC_NAME}.app`)
 const pathFile = join(REPO_ROOT, 'node_modules', 'electron', 'path.txt')
 
 try {
   if (existsSync(fromBin) && !existsSync(toBin)) {
     // Symlink keeps the original for `postinstall` idempotency.
     symlinkSync('Electron', toBin)
-    console.log(`[patch-dev-name] created MacOS/${APP_NAME} → Electron symlink.`)
+    console.log(`[patch-dev-name] created MacOS/${EXEC_NAME} → Electron symlink.`)
   }
 } catch (e) {
   console.warn('[patch-dev-name] could not create executable symlink:', e?.message)
@@ -90,10 +94,10 @@ try {
 try {
   if (!existsSync(aliasApp)) {
     symlinkSync('Electron.app', aliasApp)
-    console.log(`[patch-dev-name] created dist/${APP_NAME}.app → Electron.app symlink.`)
+    console.log(`[patch-dev-name] created dist/${EXEC_NAME}.app → Electron.app symlink.`)
   }
-  writeFileSync(pathFile, `${APP_NAME}.app/Contents/MacOS/${APP_NAME}`, 'utf8')
-  console.log(`[patch-dev-name] updated electron/path.txt → ${APP_NAME}.app/Contents/MacOS/${APP_NAME}`)
+  writeFileSync(pathFile, `${EXEC_NAME}.app/Contents/MacOS/${EXEC_NAME}`, 'utf8')
+  console.log(`[patch-dev-name] updated electron/path.txt → ${EXEC_NAME}.app/Contents/MacOS/${EXEC_NAME}`)
 } catch (e) {
   console.warn('[patch-dev-name] could not alias the app bundle path:', e?.message)
   try {

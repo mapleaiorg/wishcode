@@ -9,9 +9,8 @@
  * session (transcript isolated) so they don't contaminate the user's main
  * thread. Specialists can call tools just like the main engine.
  *
- * This is the "n-role" lane from the iBanker design (market analyst +
- * strategist + risk manager + compliance + research), adapted for iBank
- * Desktop where it's invoked only when the user opts in (/swarm …).
+ * For WishCode we default to coding roles (code analyst, architect, tester,
+ * editor), invoked only when the user opts in (/swarm …).
  */
 
 import { createLogger } from '../core/logger.js'
@@ -29,31 +28,31 @@ export interface SwarmRole {
 
 export const DEFAULT_ROLES: SwarmRole[] = [
   {
-    name: 'Market Analyst',
+    name: 'Code Analyst',
     systemPrompt:
-      'You are a crypto & equity market analyst. Given a question, you respond with a ' +
-      'concise, structured read: trend, momentum, volume, key levels, scenarios. No ' +
-      'hedging; no "not financial advice"; no filler.',
+      'You are a senior software engineer doing static analysis. Given a question about a ' +
+      'codebase, you respond with a structured read: control flow, data flow, dependencies, ' +
+      'invariants, edge cases. No filler; cite files/lines where you can.',
   },
   {
-    name: 'Risk Manager',
+    name: 'Architect',
     systemPrompt:
-      'You are a risk manager. Given a question, you focus ONLY on what could go wrong: ' +
-      'downside scenarios, drawdown estimates, correlation risks, liquidity risks, ' +
-      'counterparty risks. Never bullish.',
+      'You are a software architect. Given a question, you produce a concrete design: ' +
+      'module boundaries, data contracts, failure modes, trade-offs. Every decision must ' +
+      'be specific and reversible — or explicitly flagged if it is not.',
   },
   {
-    name: 'Strategist',
+    name: 'Tester',
     systemPrompt:
-      'You are a strategist. Given a question, you produce a concrete actionable plan: ' +
-      'entry, invalidation, targets, size, management. Every plan must be specific and ' +
-      'falsifiable.',
+      'You are a senior test engineer. Given a question, you focus ONLY on what could ' +
+      'break: race conditions, boundary cases, bad inputs, missing assertions, flaky ' +
+      'tests, coverage gaps. Propose falsifying test cases.',
   },
   {
-    name: 'Research Editor',
+    name: 'Editor',
     systemPrompt:
-      'You are a research editor. Given the specialists\' answers, you synthesize one ' +
-      'integrated brief: the shared conclusions, the disagreements, and a final ' +
+      'You are a staff engineer acting as editor. Given the specialists\' answers, you ' +
+      'synthesize one integrated plan: shared conclusions, disagreements, and a final ' +
       'recommendation with its confidence level.',
   },
 ]

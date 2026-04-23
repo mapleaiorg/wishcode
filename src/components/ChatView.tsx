@@ -1,8 +1,8 @@
 /**
  * ChatView — transcript + pill composer.
  *
- * Streams assistant output via window.ibank.chat events. Supports slash
- * commands (dispatched through window.ibank.commands.run) that either
+ * Streams assistant output via window.wish.chat events. Supports slash
+ * commands (dispatched through window.wish.commands.run) that either
  * render inline or are forwarded to the LLM.
  *
  * Per-message affordances:
@@ -15,27 +15,31 @@
  */
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUp, Square, Pencil, Check, X, Search, Copy } from 'lucide-react'
+import { ArrowUp, Square, Pencil, Check, X, Search, Copy, Loader2 } from 'lucide-react'
 import type { CommandInfo, ContentBlock, Conversation, Message } from '../types'
 import { MessageRenderer } from './MessageRenderer'
-import { Logo } from './Logo'
+import { LogoWish3D } from './LogoWish3D'
+import { TodosPane } from './TodosPane'
 
 interface Props {
   conversation: Conversation
   onUpdate(partial: Partial<Conversation>): void
+  /** Functional update for messages — critical for streaming so we don't
+   *  drop deltas that arrive synchronously between React commits. */
+  onMutateMessages(fn: (prev: Message[]) => Message[]): void
 }
 
 const COMPOSER_MIN_H = 24     // single line — grows as the user types
 const COMPOSER_MAX_H = 220
 
 const STARTER_PROMPTS: string[] = [
-  'What is happening with BTC and ETH this week?',
-  'Analyze my wallet — any risk I should know about?',
-  'Suggest a DeFi yield strategy for stable USDC at moderate risk.',
-  'Summarize macro + crypto news for today.',
+  'Explain the architecture of this repo and find the main entry point.',
+  'Find every TODO/FIXME and summarize what\'s left to do.',
+  'Add a failing test for the auth flow, then make it pass.',
+  'Refactor the largest file in src/ into smaller, focused modules.',
 ]
 
-export function ChatView({ conversation, onUpdate }: Props) {
+export function ChatView({ conversation, onUpdate, onMutateMessages }: Props) {
   const [input, setInput] = useState('')
   const [pending, setPending] = useState<string | null>(null)
   const [commands, setCommands] = useState<CommandInfo[]>([])
@@ -43,13 +47,21 @@ export function ChatView({ conversation, onUpdate }: Props) {
   const [slashIdx, setSlashIdx] = useState(0)
   const [searchQ, setSearchQ] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
+  // Live-status footer state. `pendingStartedAt` drives the elapsed clock.
+  // `streamedChars` is a running total of delta lengths — we convert it to an
+  // approximate token count (~4 chars per token) for the bottom-bar readout,
+  // since real usage.output_tokens only arrives at onDone.
+  const [pendingStartedAt, setPendingStartedAt] = useState<number | null>(null)
+  const [streamedChars, setStreamedChars] = useState(0)
+  const [activityPhase, setActivityPhase] = useState<string | null>(null)
+  const [nowTick, setNowTick] = useState(Date.now())
   const transcriptRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
 
   // Load the built-in command catalog once — used for the slash menu.
   useEffect(() => {
-    void window.ibank?.commands.list()
+    void window.wish?.commands.list()
       .then((cs) => setCommands(cs ?? []))
       .catch(() => setCommands([]))
   }, [])
@@ -69,7 +81,7 @@ export function ChatView({ conversation, onUpdate }: Props) {
     if (!el) return
     const sync = () => {
       document.documentElement.style.setProperty(
-        '--ibn-bottom-bar-h',
+        '--wsh-bottom-bar-h',
         `${Math.ceil(el.getBoundingClientRect().height)}px`,
       )
     }
@@ -106,44 +118,70 @@ export function ChatView({ conversation, onUpdate }: Props) {
     requestAnimationFrame(scrollToBottom)
   }, [conversation.id, conversation.messages.length, scrollToBottom])
 
+  // Stream handlers. Critical: use functional updates (onMutateMessages)
+  // not snapshot-based ones, because many deltas may arrive between React
+  // commits — reading `conversation.messages` from the closure would
+  // overwrite earlier appends with the same stale base snapshot.
   useEffect(() => {
-    const u1 = window.ibank?.chat.onDelta((p) => {
+    if (!window.wish) return
+    const u1 = window.wish.chat.onDelta((p) => {
       if (p.requestId !== pending) return
-      onUpdate({ messages: appendDeltaToLast(conversation.messages, p.text) })
+      onMutateMessages((prev) => appendDeltaToLast(prev, p.text))
+      setStreamedChars((n) => n + (p.text?.length ?? 0))
+      setActivityPhase('thinking')
       requestAnimationFrame(scrollToBottom)
     })
-    const u2 = window.ibank?.chat.onThinking((p) => {
+    const u2 = window.wish.chat.onThinking((p) => {
       if (p.requestId !== pending) return
-      onUpdate({ messages: appendThinkingToLast(conversation.messages, p.text) })
+      onMutateMessages((prev) => appendThinkingToLast(prev, p.text))
+      setActivityPhase('reasoning')
     })
-    const u3 = window.ibank?.chat.onToolUse((p) => {
+    const u3 = window.wish.chat.onToolUse((p) => {
       if (p.requestId !== pending || p.phase !== 'end') return
-      onUpdate({
-        messages: appendBlockToLast(conversation.messages, {
-          type: 'tool_use', id: p.id, name: p.name, input: p.input,
-        }),
-      })
+      onMutateMessages((prev) => appendBlockToLast(prev, {
+        type: 'tool_use', id: p.id, name: p.name, input: p.input,
+      }))
+      setActivityPhase(`running ${p.name}`)
     })
-    const u4 = window.ibank?.chat.onToolResult((p) => {
+    const u4 = window.wish.chat.onToolResult((p) => {
       if (!pending) return
-      onUpdate({
-        messages: appendBlockToLast(conversation.messages, {
-          type: 'tool_result', tool_use_id: p.id ?? 'x', content: p.result,
-        }),
-      })
+      onMutateMessages((prev) => appendBlockToLast(prev, {
+        type: 'tool_result', tool_use_id: p.id ?? 'x', content: p.result,
+      }))
+      setActivityPhase('thinking')
     })
-    const u5 = window.ibank?.chat.onDone((p) => {
+    const u5 = window.wish.chat.onDone((p) => {
       if (p.requestId !== pending) return
       setPending(null)
-      onUpdate({ messages: markLastDone(conversation.messages) })
+      setPendingStartedAt(null)
+      setActivityPhase(null)
+      // If the backend reported real usage numbers, prefer them over the
+      // char-based estimate so the final readout matches the model's bill.
+      const out = p.usage?.output_tokens ?? p.usage?.completion_tokens
+      if (typeof out === 'number' && out > 0) setStreamedChars(out * 4)
+      onMutateMessages((prev) => markLastDone(prev))
     })
-    const u6 = window.ibank?.chat.onError((p) => {
+    const u6 = window.wish.chat.onError((p) => {
       if (p.requestId !== pending) return
       setPending(null)
-      onUpdate({ messages: markLastError(conversation.messages, p.error) })
+      setPendingStartedAt(null)
+      setActivityPhase(null)
+      onMutateMessages((prev) => markLastError(prev, p.error))
     })
-    return () => { u1?.(); u2?.(); u3?.(); u4?.(); u5?.(); u6?.() }
-  }, [pending, conversation.messages, onUpdate, scrollToBottom])
+    const u7 = window.wish.chat.onStatus?.((p: any) => {
+      if (p?.requestId && p.requestId !== pending) return
+      if (p?.phase) setActivityPhase(String(p.phase))
+    })
+    return () => { u1?.(); u2?.(); u3?.(); u4?.(); u5?.(); u6?.(); u7?.() }
+  }, [pending, onMutateMessages, scrollToBottom])
+
+  // Drive the elapsed-time readout. Only ticking while pending keeps idle
+  // tabs from doing work and keeps React from re-rendering the transcript.
+  useEffect(() => {
+    if (!pending) return
+    const id = window.setInterval(() => setNowTick(Date.now()), 500)
+    return () => window.clearInterval(id)
+  }, [pending])
 
   const runLlmTurnWithHistory = useCallback(
     async (priorMessages: Message[], text: string) => {
@@ -157,7 +195,10 @@ export function ChatView({ conversation, onUpdate }: Props) {
         title: conversation.title === 'New conversation' ? text.slice(0, 48) : conversation.title,
       })
       setPending(requestId)
-      await window.ibank?.chat.send(conversation.id, requestId, text, 'auto').catch(() => {})
+      setPendingStartedAt(Date.now())
+      setStreamedChars(0)
+      setActivityPhase('dispatching')
+      await window.wish?.chat.send(conversation.id, requestId, text, 'auto').catch(() => {})
     },
     [conversation.id, conversation.title, onUpdate],
   )
@@ -185,7 +226,7 @@ export function ChatView({ conversation, onUpdate }: Props) {
     if (!text || pending) return
     setInput('')
     if (text.startsWith('/')) {
-      const res: any = await window.ibank?.commands.run(conversation.id, text).catch((e: Error) => ({ kind: 'error', message: e.message }))
+      const res: any = await window.wish?.commands.run(conversation.id, text).catch((e: Error) => ({ kind: 'error', message: e.message }))
       if (res?.kind === 'prompt') {
         await runLlmTurn(res.prompt)
       } else {
@@ -203,8 +244,10 @@ export function ChatView({ conversation, onUpdate }: Props) {
 
   const stop = useCallback(async () => {
     if (!pending) return
-    await window.ibank?.chat.abort(pending).catch(() => {})
+    await window.wish?.chat.abort(pending).catch(() => {})
     setPending(null)
+    setPendingStartedAt(null)
+    setActivityPhase(null)
   }, [pending])
 
   // Filter the visible transcript by search query.
@@ -223,10 +266,10 @@ export function ChatView({ conversation, onUpdate }: Props) {
   const isEmpty = conversation.messages.length === 0
 
   return (
-    <div className="ibn-chat">
-      <div className="ibn-chat-searchbar">
+    <div className="wsh-chat">
+      <div className="wsh-chat-searchbar">
         {searchOpen ? (
-          <div className="ibn-topbar-search">
+          <div className="wsh-topbar-search">
             <Search size={12} />
             <input
               autoFocus
@@ -237,12 +280,12 @@ export function ChatView({ conversation, onUpdate }: Props) {
                 if (e.key === 'Escape') { setSearchOpen(false); setSearchQ('') }
               }}
             />
-            <button className="ibn-icon-btn" onClick={() => { setSearchOpen(false); setSearchQ('') }} title="Close">
+            <button className="wsh-icon-btn" onClick={() => { setSearchOpen(false); setSearchQ('') }} title="Close">
               <X size={12} />
             </button>
           </div>
         ) : (
-          <button className="ibn-icon-btn" onClick={() => setSearchOpen(true)} title="Filter this chat">
+          <button className="wsh-icon-btn" onClick={() => setSearchOpen(true)} title="Filter this chat">
             <Search size={12} />
           </button>
         )}
@@ -253,25 +296,25 @@ export function ChatView({ conversation, onUpdate }: Props) {
         )}
       </div>
 
-      <div className="ibn-transcript" ref={transcriptRef}>
+      <div className="wsh-transcript" ref={transcriptRef}>
         {isEmpty && (
-          <div className="ibn-empty">
-            <div className="ibn-empty-logo">
-              <Logo size={112} />
+          <div className="wsh-empty">
+            <div className="wsh-empty-wishmark">
+              <LogoWish3D height={120} />
             </div>
             <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ color: 'var(--brand)' }}>iBank</span>
+              <span style={{ color: 'var(--brand)' }}>Wish Code</span>
               <span style={{ color: 'var(--text-dim)', fontWeight: 400, fontSize: 15 }}>
-                — your OpeniBank on-desk assistant
+                — your on-desk AI coding agent
               </span>
             </h1>
             <p>
-              I can analyze markets, manage memory, run DeFi research, query your wallet, and
-              orchestrate skills. Try one of these:
+              I can read and edit files, run shell commands, search the web, spin up sub-agents,
+              and invoke skills. Try one of these:
             </p>
-            <div className="ibn-starters">
+            <div className="wsh-starters">
               {STARTER_PROMPTS.map((p) => (
-                <button key={p} className="ibn-starter" onClick={() => setInput(p)}>
+                <button key={p} className="wsh-starter" onClick={() => setInput(p)}>
                   {p}
                 </button>
               ))}
@@ -288,13 +331,27 @@ export function ChatView({ conversation, onUpdate }: Props) {
         ))}
       </div>
 
-      <div className="ibn-composer" ref={composerRef}>
+      <div className="wsh-todos-wrap" style={{ padding: '0 var(--wsh-chat-pad, 20px)' }}>
+        <TodosPane sessionId={conversation.id} />
+      </div>
+
+      {pending && pendingStartedAt && (
+        <LiveStatus
+          startedAt={pendingStartedAt}
+          now={nowTick}
+          phase={activityPhase}
+          streamedChars={streamedChars}
+          onStop={stop}
+        />
+      )}
+
+      <div className="wsh-composer" ref={composerRef}>
         {slashOpen && (
-          <div className="ibn-slash-menu" role="listbox">
+          <div className="wsh-slash-menu" role="listbox">
             {slashMatches.map((c, i) => (
               <div
                 key={c.name}
-                className={`ibn-slash-item ${i === slashIdx ? 'active' : ''}`}
+                className={`wsh-slash-item ${i === slashIdx ? 'active' : ''}`}
                 onMouseDown={(e) => {
                   e.preventDefault()
                   setInput(`/${c.name} `)
@@ -314,7 +371,7 @@ export function ChatView({ conversation, onUpdate }: Props) {
           </div>
         )}
 
-        <div className="ibn-pill">
+        <div className="wsh-pill">
           <textarea
             ref={textareaRef}
             value={input}
@@ -337,7 +394,7 @@ export function ChatView({ conversation, onUpdate }: Props) {
                 e.preventDefault(); void onSubmit()
               }
             }}
-            placeholder={pending ? 'Streaming…' : 'Ask iBank anything, or type / for commands'}
+            placeholder={pending ? 'Streaming…' : 'Ask Wish Code anything, or type / for commands'}
             rows={1}
             style={{ minHeight: COMPOSER_MIN_H, maxHeight: COMPOSER_MAX_H }}
           />
@@ -349,10 +406,10 @@ export function ChatView({ conversation, onUpdate }: Props) {
             </button>
           )}
         </div>
-        <div className="ibn-composer-row">
-          <span className="ibn-chip" onClick={() => setInput((v) => v + '/plan ')}>Plan</span>
-          <span className="ibn-chip" onClick={() => setInput((v) => v + '/trade top ')}>Top markets</span>
-          <span className="ibn-chip" onClick={() => setInput((v) => v + '/wallet balances ')}>Balances</span>
+        <div className="wsh-composer-row">
+          <span className="wsh-chip" onClick={() => setInput((v) => v + '/plan ')}>Plan</span>
+          <span className="wsh-chip" onClick={() => setInput((v) => v + '/review ')}>Review</span>
+          <span className="wsh-chip" onClick={() => setInput((v) => v + '/test ')}>Test</span>
           <span className="spacer" />
           <span style={{ color: 'var(--text-mute)' }}>↩ send · shift+↩ newline · / for commands</span>
         </div>
@@ -387,19 +444,19 @@ function MessageRow({ message, disabled, onEditResend }: {
 
   return (
     <div
-      className={`ibn-msg ${message.role}`}
+      className={`wsh-msg ${message.role}`}
       onDoubleClick={isUser && !editing ? startEdit : undefined}
     >
-      <div className="ibn-msg-avatar">{avatarFor(message)}</div>
-      <div className="ibn-msg-body">
-        <div className="ibn-msg-role">
+      <div className="wsh-msg-avatar">{avatarFor(message)}</div>
+      <div className="wsh-msg-body">
+        <div className="wsh-msg-role">
           {message.role}
           {message.provider && ` · ${message.provider}/${message.model}`}
         </div>
         {message.error ? (
           <ErrorBlock text={message.error} />
         ) : editing ? (
-          <div className="ibn-msg-edit">
+          <div className="wsh-msg-edit">
             <textarea
               autoFocus
               value={draft}
@@ -411,10 +468,10 @@ function MessageRow({ message, disabled, onEditResend }: {
               rows={Math.min(10, Math.max(2, draft.split('\n').length))}
             />
             <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-              <button className="ibn-btn primary" onClick={commit} disabled={!draft.trim() || disabled}>
+              <button className="wsh-btn primary" onClick={commit} disabled={!draft.trim() || disabled}>
                 <Check size={12} /> Resend
               </button>
-              <button className="ibn-btn" onClick={cancel}>
+              <button className="wsh-btn" onClick={cancel}>
                 <X size={12} /> Cancel
               </button>
               <span style={{ fontSize: 11, color: 'var(--text-mute)', alignSelf: 'center' }}>
@@ -426,8 +483,8 @@ function MessageRow({ message, disabled, onEditResend }: {
           <MessageRenderer message={message} />
         )}
         {isUser && !editing && !message.error && (
-          <div className="ibn-msg-actions">
-            <button className="ibn-msg-action" onClick={startEdit} disabled={disabled} title="Edit and resend">
+          <div className="wsh-msg-actions">
+            <button className="wsh-msg-action" onClick={startEdit} disabled={disabled} title="Edit and resend">
               <Pencil size={11} />
               <span>Edit</span>
             </button>
@@ -453,10 +510,10 @@ function ErrorBlock({ text }: { text: string }) {
     } catch { /* ignore */ }
   }
   return (
-    <div className="ibn-msg-error">
-      <div className="ibn-msg-error-body">{text}</div>
-      <div className="ibn-msg-actions">
-        <button className="ibn-msg-action" onClick={onCopy} title="Copy error">
+    <div className="wsh-msg-error">
+      <div className="wsh-msg-error-body">{text}</div>
+      <div className="wsh-msg-actions">
+        <button className="wsh-msg-action" onClick={onCopy} title="Copy error">
           {copied ? <Check size={12} /> : <Copy size={12} />}
           <span>{copied ? 'Copied' : 'Copy'}</span>
         </button>
@@ -467,7 +524,7 @@ function ErrorBlock({ text }: { text: string }) {
 
 function avatarFor(m: Message): string {
   if (m.role === 'user') return 'U'
-  if (m.role === 'assistant') return 'iB'
+  if (m.role === 'assistant') return 'W'
   if (m.role === 'system') return '•'
   return 'T'
 }
@@ -526,6 +583,78 @@ function markLastDone(messages: Message[]): Message[] {
   const next = [...messages]
   next[i] = { ...messages[i], streaming: false }
   return next
+}
+
+// ── Live-status footer ────────────────────────────────────────────
+//
+// Renders a thin bar ABOVE the composer while a turn is pending, to match
+// Claude Code's "⟳ Thinking · 8m 24s · ↓ 8.4k tokens" affordance. We have
+// no real-time output_tokens from the provider, so we estimate from the
+// streamed char count (chars/4), then correct on onDone if usage arrived.
+
+function LiveStatus({
+  startedAt, now, phase, streamedChars, onStop,
+}: {
+  startedAt: number
+  now: number
+  phase: string | null
+  streamedChars: number
+  onStop: () => void
+}) {
+  const elapsedMs = Math.max(0, now - startedAt)
+  const tokens = Math.round(streamedChars / 4)
+  return (
+    <div className="wsh-live-status" role="status" aria-live="polite">
+      <Loader2 size={13} className="wsh-live-spin" />
+      <span className="wsh-live-phase">{prettyPhase(phase)}</span>
+      <span className="wsh-live-sep">·</span>
+      <span className="wsh-live-time" title="Elapsed">{formatElapsed(elapsedMs)}</span>
+      {tokens > 0 && (
+        <>
+          <span className="wsh-live-sep">·</span>
+          <span className="wsh-live-tokens" title="Approximate output tokens">
+            ↓ {formatTokens(tokens)} tokens
+          </span>
+        </>
+      )}
+      <span className="spacer" />
+      <button className="wsh-live-stop" onClick={onStop} title="Interrupt (Esc)">
+        <Square size={11} /> Stop
+      </button>
+    </div>
+  )
+}
+
+function prettyPhase(p: string | null): string {
+  if (!p) return 'Thinking'
+  const map: Record<string, string> = {
+    dispatching: 'Dispatching',
+    thinking: 'Thinking',
+    reasoning: 'Reasoning',
+    compacting: 'Compacting context',
+    'swarm-fanout': 'Consulting specialists',
+    'swarm-synthesize': 'Synthesizing',
+  }
+  if (map[p]) return map[p]
+  // "running fs_read" → "Running fs_read"
+  return p.charAt(0).toUpperCase() + p.slice(1)
+}
+
+function formatElapsed(ms: number): string {
+  const s = Math.floor(ms / 1000)
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  const rem = s % 60
+  if (m < 60) return `${m}m ${rem.toString().padStart(2, '0')}s`
+  const h = Math.floor(m / 60)
+  const mm = m % 60
+  return `${h}h ${mm}m`
+}
+
+function formatTokens(n: number): string {
+  if (n < 1000) return String(n)
+  if (n < 10_000) return `${(n / 1000).toFixed(1)}k`
+  return `${Math.round(n / 1000)}k`
 }
 
 function markLastError(messages: Message[], err: string): Message[] {

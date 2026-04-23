@@ -1,20 +1,16 @@
 /**
- * Config I/O for ~/.ibank/.ibank.json
+ * Config I/O for ~/.wishcode/.wishcode.json
  *
- * Matches the on-disk format of the v0.2.5 CLI so users migrating
- * forward keep their OAuth tokens, API keys, and preferences.
- *
- *   ~/.ibank/                      (0o700)
- *     .ibank.json                  (0o600)
+ *   ~/.wishcode/                    (0o700)
+ *     .wishcode.json                (0o600)
  *       ├─ env: { ANTHROPIC_API_KEY, OPENAI_API_KEY, … }
  *       ├─ claudeAiOauth: { accessToken, refreshToken, expiresAt, scopes }
  *       ├─ oauthAccount: { accountUuid, email }
  *       ├─ mainLoopModel: "claude-sonnet-4-6"
  *       ├─ mainLoopModelProvider: "anthropic"
  *       ├─ lastAnthropicModel: "claude-sonnet-4-6"
- *       ├─ wallet: { hasKeystore, selectedAccount, policy }
  *       ├─ memory: { enabled, maxResults }
- *       └─ ui: { theme, sidebarCollapsed, viewsPanelOpen, viewsTab }
+ *       └─ ui: { theme, sidebarCollapsed }
  */
 
 import * as fs from 'fs'
@@ -22,9 +18,11 @@ import * as os from 'os'
 import * as path from 'path'
 
 export const CONFIG_DIR =
-  process.env.IBANK_CONFIG_HOME || path.join(os.homedir(), '.ibank')
+  process.env.WISH_CONFIG_HOME ||
+  process.env.IBANK_CONFIG_HOME ||
+  path.join(os.homedir(), '.wishcode')
 
-export const CONFIG_FILE = path.join(CONFIG_DIR, '.ibank.json')
+export const CONFIG_FILE = path.join(CONFIG_DIR, '.wishcode.json')
 
 export type Config = Record<string, any>
 
@@ -120,17 +118,38 @@ export function paths() {
     configFile: CONFIG_FILE,
     sessionsDir: path.join(CONFIG_DIR, 'sessions'),
     memoryDir: path.join(CONFIG_DIR, 'memory'),
-    walletDir: path.join(CONFIG_DIR, 'wallet'),
-    tradingDir: path.join(CONFIG_DIR, 'trading'),
     tasksDir: path.join(CONFIG_DIR, 'tasks'),
     skillsDir: path.join(CONFIG_DIR, 'skills'),
     buddyDir: path.join(CONFIG_DIR, 'buddy'),
     logsDir: path.join(CONFIG_DIR, 'logs'),
-    nftDir: path.join(CONFIG_DIR, 'nft'),
-    cryptoBuddiesDir: path.join(CONFIG_DIR, 'cryptoBuddies'),
-    financialBuddiesDir: path.join(CONFIG_DIR, 'financialBuddies'),
-    harnessDir: path.join(CONFIG_DIR, 'harness'),
+    projectsDir: path.join(CONFIG_DIR, 'projects'),
+    mcpDir: path.join(CONFIG_DIR, 'mcp'),
+    blackboardDir: path.join(CONFIG_DIR, 'blackboards'),
   }
+}
+
+/**
+ * Current workspace root — the directory the agent treats as "the project".
+ *
+ * Resolution order:
+ *   1. Env override `WISH_WORKSPACE`
+ *   2. Config key `workspaceRoot`
+ *   3. `process.cwd()` (fallback — when launched from a terminal)
+ *
+ * Tools that take relative file paths resolve them against this root.
+ * Absolute paths are honored as-is (the agent can read anywhere on the
+ * machine, subject to OS perms).
+ */
+export function workspaceRoot(): string {
+  if (process.env.WISH_WORKSPACE) return process.env.WISH_WORKSPACE
+  const cfg = readConfig()
+  if (typeof cfg.workspaceRoot === 'string' && cfg.workspaceRoot) return cfg.workspaceRoot
+  return process.cwd()
+}
+
+export function setWorkspaceRoot(dir: string): void {
+  const abs = path.resolve(dir)
+  writeConfig((cfg) => { cfg.workspaceRoot = abs; return cfg })
 }
 
 /** Ensure every standard sub-directory exists with correct perms. */
@@ -138,9 +157,9 @@ export function ensureAllDirs(): void {
   ensureDir()
   const p = paths()
   for (const dir of [
-    p.sessionsDir, p.memoryDir, p.walletDir, p.tradingDir,
-    p.tasksDir, p.skillsDir, p.buddyDir, p.logsDir,
-    p.nftDir, p.cryptoBuddiesDir, p.financialBuddiesDir, p.harnessDir,
+    p.sessionsDir, p.memoryDir, p.tasksDir, p.skillsDir,
+    p.buddyDir, p.logsDir, p.projectsDir, p.mcpDir,
+    p.blackboardDir,
   ]) {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true, mode: 0o700 })
   }

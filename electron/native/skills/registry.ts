@@ -16,15 +16,15 @@
  *   tools: [Read, WebFetch, Trade]        # tool subset this skill unlocks
  *   permissions: auto                     # auto | ask | plan
  *   version: 1.0.0
- *   author: iBank Team                    # optional
+ *   author: WishCode Team                 # optional
  *   ---
  *   <markdown body — prepended to system prompt when active>
  *
  * Skills load from two locations (user wins on name conflict):
  *   1. electron/native/skills/builtin/   (shipped with the app)
- *   2. ~/.ibank/skills/                  (user-installed; one folder per skill)
+ *   2. ~/.wishcode/skills/               (user-installed; one folder per skill)
  *
- * Users can drop a .md file into ~/.ibank/skills/ and it's picked up on next
+ * Users can drop a .md file into ~/.wishcode/skills/ and it's picked up on next
  * query. The Skill Editor UI (sidebar) writes to this folder.
  */
 

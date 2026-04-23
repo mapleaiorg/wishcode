@@ -1,7 +1,7 @@
 /**
  * Append-only conversation transcript persisted as JSONL.
  *
- * One file per session at ~/.ibank/sessions/<yyyy-mm>/<session-id>.jsonl
+ * One file per session at ~/.wishcode/sessions/<yyyy-mm>/<session-id>.jsonl
  *
  * Each line is a TranscriptEvent. Readers re-materialize the conversation
  * by streaming the file. Compaction rewrites the file: it drops the oldest
@@ -235,7 +235,7 @@ export async function exportTranscript(
   if (format === 'json') {
     await fs.promises.writeFile(p, JSON.stringify(events, null, 2), { mode: 0o600 })
   } else {
-    const lines: string[] = [`# iBank transcript — ${sessionId}`, '']
+    const lines: string[] = [`# WishCode transcript — ${sessionId}`, '']
     for (const e of events) {
       if (e.kind === 'summary') {
         lines.push(`> **Summary of ${e.replacesRange.count} earlier turns**\n> \n> ${e.summary.replace(/\n/g, '\n> ')}\n`)

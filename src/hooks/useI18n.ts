@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { DICTIONARIES, LANGUAGES, type Lang, type LangMeta } from '../i18n/messages'
 
-const STORAGE_KEY = 'ibank.lang'
+const STORAGE_KEY = 'wsh.lang'
 
 function detectInitialLang(): Lang {
   try {

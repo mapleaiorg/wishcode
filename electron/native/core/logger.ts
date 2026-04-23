@@ -2,10 +2,10 @@
  * Structured logger.
  *
  * Writes a rolling in-memory ring (500 lines) + append-only daily log
- * file at ~/.ibank/logs/ibank-YYYY-MM-DD.log. Used by every subsystem.
+ * file at ~/.wishcode/logs/wish-YYYY-MM-DD.log. Used by every subsystem.
  *
  * Levels: debug < info < warn < error
- * IBANK_LOG_LEVEL env var controls minimum level (default: info).
+ * WISH_LOG_LEVEL env var controls minimum level (default: info).
  */
 
 import * as fs from 'fs'
@@ -26,7 +26,8 @@ const LEVEL_RANK: Record<LogLevel, number> = {
   debug: 0, info: 1, warn: 2, error: 3,
 }
 
-const MIN_LEVEL = (process.env.IBANK_LOG_LEVEL as LogLevel) ?? 'info'
+const MIN_LEVEL =
+  ((process.env.WISH_LOG_LEVEL ?? process.env.IBANK_LOG_LEVEL) as LogLevel) ?? 'info'
 const MIN_RANK = LEVEL_RANK[MIN_LEVEL] ?? 1
 
 const ring: LogEntry[] = []
@@ -47,7 +48,7 @@ function rotateIfNeeded(ts: number): void {
   try { ensureAllDirs() } catch {}
   fileStream?.end()
   currentDay = day
-  const file = path.join(paths().logsDir, `ibank-${day}.log`)
+  const file = path.join(paths().logsDir, `wish-${day}.log`)
   try {
     fileStream = fs.createWriteStream(file, { flags: 'a', mode: 0o600 })
   } catch {

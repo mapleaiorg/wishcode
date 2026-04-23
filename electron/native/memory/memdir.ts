@@ -1,5 +1,5 @@
 /**
- * Long-term memory: markdown files in ~/.ibank/memory/.
+ * Long-term memory: markdown files in ~/.wishcode/memory/.
  *
  * Each memory is a separate .md file with YAML-lite frontmatter:
  *   ---

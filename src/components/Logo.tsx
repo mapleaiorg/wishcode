@@ -1,9 +1,10 @@
 /**
- * Logo — the iBank short-mark (two rotated 'b' glyphs).
+ * Logo — WishCode short mark, drawn as a pixel-art face.
  *
- * Inlined SVG so it scales, tints, and frames without an extra request.
- * Default color is the iBank corporate blue (`--brand`). Pass `framed`
- * for a white rounded background — useful on dark sidebars.
+ * Two eye blocks at the top, a small nose block, a wide mouth bar, and two
+ * hanging "fang" blocks at the bottom. Pure SVG rects on an 8×8 grid so it
+ * scales crisply at any size. Default tint is the WishCode brand purple
+ * (`--brand`); pass `framed` for a light rounded container.
  */
 
 import React from 'react'
@@ -14,32 +15,38 @@ interface LogoProps {
   color?: string
 }
 
+// 8×8 pixel grid for the face mark. Each filled cell is rendered as a
+// brand-colored square. Rows are top→bottom.
+const GRID: Array<Array<0 | 1>> = [
+  [1, 1, 0, 0, 0, 0, 1, 1],   // eyes row 1
+  [1, 1, 0, 0, 0, 0, 1, 1],   // eyes row 2
+  [0, 0, 0, 1, 1, 0, 0, 0],   // nose row
+  [0, 0, 0, 1, 1, 0, 0, 0],
+  [1, 1, 1, 1, 1, 1, 1, 1],   // mouth bar
+  [1, 1, 1, 1, 1, 1, 1, 1],
+  [1, 1, 0, 0, 0, 0, 1, 1],   // fangs
+  [0, 0, 0, 0, 0, 0, 0, 0],
+]
+
 export const Logo: React.FC<LogoProps> = ({ size = 24, framed = false, color }) => {
   const fill = color ?? 'var(--brand)'
+  const cell = 1 // viewBox units per grid cell
   const inner = (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 54.39 54.39"
+      viewBox="0 0 8 8"
       width={framed ? size * 0.78 : size}
       height={framed ? size * 0.78 : size}
+      shapeRendering="crispEdges"
       aria-hidden="true"
     >
-      <g transform="translate(-3.055 3.055)">
-        <g fill={fill}>
-          <text
-            style={{ fontFamily: 'Impact, Impact', fontSize: '38.27px', letterSpacing: '-.34em' }}
-            transform="translate(16.1 31.39) rotate(45)"
-          >
-            <tspan x="0" y="0">b</tspan>
-          </text>
-          <text
-            style={{ fontFamily: 'Impact, Impact', fontSize: '38.27px', letterSpacing: '-.34em' }}
-            transform="translate(44.41 16.89) rotate(-135)"
-          >
-            <tspan x="0" y="0">b</tspan>
-          </text>
-        </g>
-      </g>
+      {GRID.flatMap((row, y) =>
+        row.map((v, x) =>
+          v ? (
+            <rect key={`${x},${y}`} x={x * cell} y={y * cell} width={cell} height={cell} fill={fill} />
+          ) : null,
+        ),
+      )}
     </svg>
   )
 
@@ -50,7 +57,7 @@ export const Logo: React.FC<LogoProps> = ({ size = 24, framed = false, color }) 
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           width: size, height: size, color: fill,
         }}
-        aria-label="iBank"
+        aria-label="Wish Code"
       >
         {inner}
       </span>
@@ -64,7 +71,7 @@ export const Logo: React.FC<LogoProps> = ({ size = 24, framed = false, color }) 
         width: size, height: size, background: '#fff',
         borderRadius: size * 0.22,
       }}
-      aria-label="iBank"
+      aria-label="Wish Code"
     >
       {inner}
     </span>

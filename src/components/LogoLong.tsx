@@ -1,5 +1,5 @@
 /**
- * LogoLong — the short mark followed by the "iBank" wordmark.
+ * LogoLong — the short mark followed by the "Wish Code" wordmark.
  */
 
 import React from 'react'
@@ -20,7 +20,7 @@ export const LogoLong: React.FC<LogoLongProps> = ({ height = 28, color }) => {
         display: 'inline-flex', alignItems: 'center',
         gap: height * 0.28, color: tint,
       }}
-      aria-label="iBank"
+      aria-label="Wish Code"
     >
       <Logo size={markSize} framed={false} color={tint} />
       <span
@@ -34,7 +34,7 @@ export const LogoLong: React.FC<LogoLongProps> = ({ height = 28, color }) => {
           color: tint,
         }}
       >
-        iBank
+        Wish Code
       </span>
     </span>
   )

@@ -3,7 +3,7 @@
  *
  * Every emit is fanned out to all subscribed BrowserWindows via IPC.
  * Renderer subscribes once at app boot through the preload's
- * `window.ibank.*.onX(cb)` subscription methods.
+ * `window.wish.*.onX(cb)` subscription methods.
  *
  * Channels (shape defined by each emitter):
  *   auth.oauthComplete   { success, provider, error? }
@@ -42,19 +42,14 @@ export type BusChannel =
   | 'chat.error'
   | 'buddy.update'
   | 'tasks.update'
-  | 'wallet.lockChanged'
-  | 'trading.price'
   | 'log.entry'
   | 'query.status'
   | 'app.quit'
   | 'skills.changed'
   | 'memory.changed'
   | 'tasks.changed'
-  | 'nft.updated'
-  | 'cryptoBuddies.updated'
-  | 'financialBuddies.updated'
-  | 'harness.progress'
-  | 'harness.result'
+  | 'tool.askUser'
+  | 'model.changed'
 
 export function emit(channel: BusChannel, payload: any): void {
   bus.emit(channel, payload)

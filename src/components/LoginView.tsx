@@ -7,9 +7,9 @@
  *   3. OpenAI              — API key
  *   4. xAI Grok            — API key
  *   5. Google Gemini       — API key
- *   6. OpeniBank           — API key (optional backend)
+ *   6. Hermon              — API key (optional backend)
  *
- * Every row has real buttons wired to window.ibank.auth.{login,logout,oauth*}.
+ * Every row has real buttons wired to window.wish.auth.{login,logout,oauth*}.
  * There are no stubs — an empty API-key field simply disables the save
  * button; Ollama is treated as "live" when the /api/tags probe returns ok.
  */
@@ -32,7 +32,7 @@ const CLOUD_PROVIDERS: Array<{ id: ApiProv; label: string; signupUrl?: string; k
   { id: 'openai',    label: 'OpenAI',          signupUrl: 'https://platform.openai.com/api-keys',       keyPlaceholder: 'sk-...' },
   { id: 'xai',       label: 'xAI Grok',        signupUrl: 'https://console.x.ai',                        keyPlaceholder: 'xai-...' },
   { id: 'gemini',    label: 'Google Gemini',   signupUrl: 'https://aistudio.google.com/apikey',          keyPlaceholder: 'AIza...' },
-  { id: 'openibank', label: 'OpeniBank',       signupUrl: 'https://openibank.com',                       keyPlaceholder: 'oib-...' },
+  { id: 'hermon',    label: 'Hermon',          signupUrl: 'https://hermon.ai',                           keyPlaceholder: 'hm-...' },
 ]
 
 export function LoginView({ onClose, onChanged }: Props) {
@@ -45,7 +45,7 @@ export function LoginView({ onClose, onChanged }: Props) {
   const [anthropicKey, setAnthropicKey] = useState('')
 
   const refresh = useCallback(async () => {
-    try { setStatus(await window.ibank.auth.status()) }
+    try { setStatus(await window.wish.auth.status()) }
     catch (e: any) { setErr(e?.message ?? String(e)) }
   }, [])
 
@@ -53,7 +53,7 @@ export function LoginView({ onClose, onChanged }: Props) {
 
   // pick up oauth-complete events from main
   useEffect(() => {
-    return window.ibank?.auth.onOAuthComplete(() => {
+    return window.wish?.auth.onOAuthComplete(() => {
       setOauth(null); setOauthCode('')
       void refresh()
       onChanged?.()
@@ -64,7 +64,7 @@ export function LoginView({ onClose, onChanged }: Props) {
     if (!key.trim()) return
     setBusy(provider); setErr(null)
     try {
-      await window.ibank.auth.login(provider, { apiKey: key.trim() })
+      await window.wish.auth.login(provider, { apiKey: key.trim() })
       setKeyDrafts((d) => ({ ...d, [provider]: '' }))
       await refresh()
       onChanged?.()
@@ -75,7 +75,7 @@ export function LoginView({ onClose, onChanged }: Props) {
   const logout = async (provider: Provider) => {
     setBusy(provider); setErr(null)
     try {
-      await window.ibank.auth.logout(provider)
+      await window.wish.auth.logout(provider)
       await refresh()
       onChanged?.()
     } catch (e: any) { setErr(`${provider}: ${e?.message ?? String(e)}`) }
@@ -85,9 +85,9 @@ export function LoginView({ onClose, onChanged }: Props) {
   const startOauth = async () => {
     setBusy('anthropic-oauth'); setErr(null)
     try {
-      const o = await window.ibank.auth.oauthStart()
+      const o = await window.wish.auth.oauthStart()
       setOauth(o)
-      await window.ibank.app.openExternal(o.automaticUrl ?? o.manualUrl)
+      await window.wish.app.openExternal(o.automaticUrl ?? o.manualUrl)
     } catch (e: any) { setErr(`anthropic oauth: ${e?.message ?? String(e)}`) }
     finally { setBusy(null) }
   }
@@ -96,7 +96,7 @@ export function LoginView({ onClose, onChanged }: Props) {
     if (!oauthCode.trim()) return
     setBusy('anthropic-oauth'); setErr(null)
     try {
-      await window.ibank.auth.oauthSubmitCode(oauthCode.trim())
+      await window.wish.auth.oauthSubmitCode(oauthCode.trim())
       setOauth(null); setOauthCode('')
       await refresh()
       onChanged?.()
@@ -105,7 +105,7 @@ export function LoginView({ onClose, onChanged }: Props) {
   }
 
   const cancelOauth = async () => {
-    try { await window.ibank.auth.oauthCancel() } catch {}
+    try { await window.wish.auth.oauthCancel() } catch {}
     setOauth(null); setOauthCode('')
   }
 
@@ -115,11 +115,11 @@ export function LoginView({ onClose, onChanged }: Props) {
 
   if (!status) {
     return (
-      <div className="ibn-panel">
-        <header className="ibn-panel-head">
+      <div className="wsh-panel">
+        <header className="wsh-panel-head">
           <h2>Login / Remote Models</h2>
-          <div className="ibn-panel-head-actions">
-            <button className="ibn-btn" onClick={onClose}><X size={12} /> Close</button>
+          <div className="wsh-panel-head-actions">
+            <button className="wsh-btn" onClick={onClose}><X size={12} /> Close</button>
           </div>
         </header>
         <p>Loading…</p>
@@ -130,27 +130,27 @@ export function LoginView({ onClose, onChanged }: Props) {
   const p = status.providers
 
   return (
-    <div className="ibn-panel">
-      <header className="ibn-panel-head">
+    <div className="wsh-panel">
+      <header className="wsh-panel-head">
         <h2>Login / Remote Models</h2>
-        <div className="ibn-panel-head-actions">
-          <button className="ibn-btn" onClick={() => void refresh()} title="Refresh">
+        <div className="wsh-panel-head-actions">
+          <button className="wsh-btn" onClick={() => void refresh()} title="Refresh">
             <RefreshCw size={12} /> Refresh
           </button>
-          <button className="ibn-btn" onClick={onClose}><X size={12} /> Close</button>
+          <button className="wsh-btn" onClick={onClose}><X size={12} /> Close</button>
         </div>
       </header>
 
       <p style={{ color: 'var(--text-dim)', maxWidth: 640 }}>
-        iBank runs local-first. If you have Ollama installed, you can chat without any cloud key.
+        Wish Code runs local-first. If you have Ollama installed, you can chat without any cloud key.
         For richer models, sign in to one or more providers below — keys are saved encrypted in
         your config dir and never leave your machine.
       </p>
 
-      {err && <div className="ibn-helper warn">{err}</div>}
+      {err && <div className="wsh-helper warn">{err}</div>}
 
       {/* ── Ollama ── */}
-      <section className="ibn-card" style={{ padding: 14 }}>
+      <section className="wsh-card" style={{ padding: 14 }}>
         <header style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <strong style={{ flex: 1 }}>🦙 Ollama (local, recommended)</strong>
           {p.ollama.live
@@ -159,13 +159,13 @@ export function LoginView({ onClose, onChanged }: Props) {
         </header>
         <p style={{ color: 'var(--text-dim)', fontSize: 12, margin: '8px 0' }}>
           Probed at <code>{p.ollama.baseUrl}</code>. Install from
-          {' '}<a href="#" onClick={(e) => { e.preventDefault(); window.ibank.app.openExternal('https://ollama.com/download') }}>ollama.com/download</a>
+          {' '}<a href="#" onClick={(e) => { e.preventDefault(); window.wish.app.openExternal('https://ollama.com/download') }}>ollama.com/download</a>
           {' '}then run <code>ollama pull llama3.2</code>. The model picker will list whatever is installed.
         </p>
       </section>
 
       {/* ── Anthropic ── */}
-      <section className="ibn-card" style={{ padding: 14 }}>
+      <section className="wsh-card" style={{ padding: 14 }}>
         <header style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <strong style={{ flex: 1 }}>Anthropic · Claude</strong>
           {p.anthropic.configured
@@ -174,7 +174,7 @@ export function LoginView({ onClose, onChanged }: Props) {
               </span>
             : <span className="pill" style={{ color: 'var(--text-mute)' }}><CircleSlash size={11} /> not configured</span>}
           {p.anthropic.configured && (
-            <button className="ibn-btn" onClick={() => void logout('anthropic')} disabled={busy === 'anthropic'}>
+            <button className="wsh-btn" onClick={() => void logout('anthropic')} disabled={busy === 'anthropic'}>
               <LogOut size={12} /> Sign out
             </button>
           )}
@@ -185,21 +185,21 @@ export function LoginView({ onClose, onChanged }: Props) {
             <p style={{ color: 'var(--text-dim)', fontSize: 12, margin: '8px 0 10px' }}>
               <strong>Pro / Max subscribers</strong>: authorize with your Claude account to use your subscription quota.
               <br />
-              <strong>Developers</strong>: paste an API key from <a href="#" onClick={(e) => { e.preventDefault(); window.ibank.app.openExternal('https://console.anthropic.com/settings/keys') }}>console.anthropic.com</a>.
+              <strong>Developers</strong>: paste an API key from <a href="#" onClick={(e) => { e.preventDefault(); window.wish.app.openExternal('https://console.anthropic.com/settings/keys') }}>console.anthropic.com</a>.
             </p>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button className="ibn-btn primary" onClick={startOauth} disabled={busy === 'anthropic-oauth'}>
+              <button className="wsh-btn primary" onClick={startOauth} disabled={busy === 'anthropic-oauth'}>
                 <ExternalLink size={12} /> Authorize via platform.claude.com
               </button>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               <input
-                className="ibn-input" type="password" placeholder="sk-ant-..."
+                className="wsh-input" type="password" placeholder="sk-ant-..."
                 value={anthropicKey} onChange={(e) => setAnthropicKey(e.target.value)}
                 style={{ flex: 1 }}
               />
               <button
-                className="ibn-btn"
+                className="wsh-btn"
                 onClick={() => void saveKey('anthropic', anthropicKey).then(() => setAnthropicKey(''))}
                 disabled={!anthropicKey.trim() || busy === 'anthropic'}
               >
@@ -217,21 +217,21 @@ export function LoginView({ onClose, onChanged }: Props) {
             </p>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
               <input
-                className="ibn-input" placeholder="Paste callback code…" autoFocus
+                className="wsh-input" placeholder="Paste callback code…" autoFocus
                 value={oauthCode} onChange={(e) => setOauthCode(e.target.value)}
                 style={{ flex: 1 }}
               />
-              <button className="ibn-btn primary" disabled={!oauthCode.trim() || busy === 'anthropic-oauth'} onClick={() => void submitOauthCode()}>
+              <button className="wsh-btn primary" disabled={!oauthCode.trim() || busy === 'anthropic-oauth'} onClick={() => void submitOauthCode()}>
                 Submit
               </button>
-              <button className="ibn-btn" onClick={() => void cancelOauth()}>Cancel</button>
+              <button className="wsh-btn" onClick={() => void cancelOauth()}>Cancel</button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 11, color: 'var(--text-mute)' }}>
               <span>Didn't open?</span>
-              <button className="ibn-btn" onClick={() => window.ibank.app.openExternal(oauth.automaticUrl)}>
+              <button className="wsh-btn" onClick={() => window.wish.app.openExternal(oauth.automaticUrl)}>
                 <ExternalLink size={11} /> Open in browser
               </button>
-              <button className="ibn-btn" onClick={() => void copyUrl(oauth.manualUrl)}>
+              <button className="wsh-btn" onClick={() => void copyUrl(oauth.manualUrl)}>
                 <Copy size={11} /> Copy URL
               </button>
             </div>
@@ -244,7 +244,7 @@ export function LoginView({ onClose, onChanged }: Props) {
         const info = (p as any)[prov.id] as { configured: boolean; apiKey?: string | null } | undefined
         const draft = keyDrafts[prov.id] ?? ''
         return (
-          <section key={prov.id} className="ibn-card" style={{ padding: 14 }}>
+          <section key={prov.id} className="wsh-card" style={{ padding: 14 }}>
             <header style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <strong style={{ flex: 1 }}>{prov.label}</strong>
               {info?.configured
@@ -253,27 +253,27 @@ export function LoginView({ onClose, onChanged }: Props) {
                   </span>
                 : <span className="pill" style={{ color: 'var(--text-mute)' }}><CircleSlash size={11} /> not configured</span>}
               {info?.configured && (
-                <button className="ibn-btn" onClick={() => void logout(prov.id)} disabled={busy === prov.id}>
+                <button className="wsh-btn" onClick={() => void logout(prov.id)} disabled={busy === prov.id}>
                   <LogOut size={12} /> Sign out
                 </button>
               )}
             </header>
             <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
               <input
-                className="ibn-input" type="password" placeholder={prov.keyPlaceholder}
+                className="wsh-input" type="password" placeholder={prov.keyPlaceholder}
                 value={draft}
                 onChange={(e) => setKeyDrafts((d) => ({ ...d, [prov.id]: e.target.value }))}
                 style={{ flex: 1 }}
               />
               <button
-                className="ibn-btn primary"
+                className="wsh-btn primary"
                 onClick={() => void saveKey(prov.id, draft)}
                 disabled={!draft.trim() || busy === prov.id}
               >
                 <LogIn size={12} /> Save
               </button>
               {prov.signupUrl && (
-                <button className="ibn-btn" onClick={() => window.ibank.app.openExternal(prov.signupUrl!)}>
+                <button className="wsh-btn" onClick={() => window.wish.app.openExternal(prov.signupUrl!)}>
                   <ExternalLink size={11} /> Get key
                 </button>
               )}

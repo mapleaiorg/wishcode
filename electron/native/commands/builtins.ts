@@ -1,12 +1,12 @@
 /**
- * 16 core slash commands shipped with iBank.
+ * Core slash commands shipped with WishCode.
  *
  * Each is a CommandDef with a handler that returns CommandResult. Handlers
  * pull live state from the other native subsystems rather than caching.
  */
 
-import { IBANK_VERSION } from '../core/version'
-import { readConfig, writeConfig, paths } from '../core/config'
+import { WISH_VERSION } from '../core/version'
+import { readConfig, writeConfig, paths, workspaceRoot, setWorkspaceRoot } from '../core/config'
 import { authStatus } from '../auth/auth'
 import { modelList, modelSet, currentModel } from '../llm/model'
 import {
@@ -15,7 +15,6 @@ import {
   removeMemory,
   findRelevant,
 } from '../memory/memdir'
-import { walletStatus, walletAccounts, walletBalancesAll } from '../wallet/status'
 import type { CommandDef } from './registry'
 
 export type BuiltinCommand = CommandDef
@@ -67,38 +66,30 @@ const cmdHelp: BuiltinCommand = {
 
 const cmdVersion: BuiltinCommand = {
   name: 'version',
-  summary: 'show the iBank version',
+  summary: 'show the WishCode version',
   category: 'core',
   async handler() {
-    return { kind: 'display', text: `iBank ${IBANK_VERSION}` }
+    return { kind: 'display', text: `WishCode ${WISH_VERSION}` }
   },
 }
 
 const cmdStatus: BuiltinCommand = {
   name: 'status',
-  summary: 'auth / model / wallet overview',
+  summary: 'auth / model overview',
   category: 'core',
   async handler() {
-    const [auth, model, wallet] = await Promise.all([
+    const [auth, model] = await Promise.all([
       authStatus(),
       Promise.resolve(currentModel()),
-      walletStatus(),
     ])
     const lines = [
-      `**Version** ${IBANK_VERSION}`,
+      `**Version** ${WISH_VERSION}`,
       `**Model**   ${model.provider}/${model.model}`,
       `**Auth**    ${
         Object.entries(auth.providers)
           .filter(([, p]: any) => p?.configured)
           .map(([name]) => name)
           .join(', ') || 'none'
-      }`,
-      `**Wallet**  ${
-        wallet.exists
-          ? wallet.unlocked
-            ? 'unlocked'
-            : 'locked'
-          : 'not created'
       }`,
     ]
     return { kind: 'display-md', markdown: lines.join('\n\n') }
@@ -107,7 +98,7 @@ const cmdStatus: BuiltinCommand = {
 
 const cmdLogin: BuiltinCommand = {
   name: 'login',
-  usage: '/login <anthropic|openai|xai|gemini|ollama|openibank> [key]',
+  usage: '/login <anthropic|openai|xai|gemini|ollama|hermon> [key]',
   summary: 'authenticate a provider',
   category: 'core',
   async handler({ argv }) {
@@ -123,7 +114,7 @@ const cmdLogin: BuiltinCommand = {
     const { authLogin } = require('../auth/auth') as typeof import('../auth/auth')
     const creds: Record<string, unknown> =
       provider === 'ollama' ? { baseUrl: rest || undefined }
-      : provider === 'openibank' ? { email: rest }
+      : provider === 'hermon' ? { email: rest }
       : { apiKey: rest }
     try {
       const res = await authLogin(provider as Parameters<typeof authLogin>[0], creds)
@@ -273,101 +264,10 @@ const cmdMemoryAdd: BuiltinCommand = {
   },
 }
 
-const cmdWallet: BuiltinCommand = {
-  name: 'wallet',
-  usage: '/wallet status | /wallet accounts | /wallet balances | /wallet lock | /wallet unlock',
-  summary: 'wallet operations',
-  category: 'wallet',
-  async handler({ argv }) {
-    const sub = argv[0] ?? 'status'
-    if (sub === 'status') {
-      const s = await walletStatus()
-      return {
-        kind: 'display',
-        text: s.exists
-          ? s.unlocked
-            ? `Wallet: unlocked (auto-lock in ${Math.round(s.idleMsRemaining / 1000)}s)`
-            : 'Wallet: locked'
-          : 'Wallet: not created. Use the Wallet panel to create or import.',
-      }
-    }
-    if (sub === 'accounts') {
-      const accounts = await walletAccounts()
-      if (accounts.length === 0) return { kind: 'display', text: 'Wallet is locked.' }
-      const md = accounts
-        .map((a) => `- **${a.chain}**  \`${a.address}\``)
-        .join('\n')
-      return { kind: 'display-md', markdown: '### Accounts\n\n' + md }
-    }
-    if (sub === 'balances') {
-      const bals = await walletBalancesAll()
-      if (bals.length === 0) return { kind: 'display', text: 'Wallet is locked.' }
-      const md = bals
-        .map(
-          (b) =>
-            `- **${b.chain}**  ${b.formatted} ${b.symbol}${
-              b.usdValue != null ? ` (~$${b.usdValue.toFixed(2)})` : ''
-            }`,
-        )
-        .join('\n')
-      return { kind: 'display-md', markdown: '### Balances\n\n' + md }
-    }
-    if (sub === 'lock') {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { lock } = require('../wallet/keystore') as typeof import('../wallet/keystore')
-      lock()
-      return { kind: 'display', text: 'Wallet locked.' }
-    }
-    if (sub === 'unlock') {
-      return {
-        kind: 'display',
-        text: 'Open the Wallet panel and enter your passphrase there (chat never receives passphrases).',
-      }
-    }
-    return { kind: 'error', message: 'Usage: /wallet status|accounts|balances|lock|unlock' }
-  },
-}
-
-const cmdTrade: BuiltinCommand = {
-  name: 'trade',
-  usage: '/trade price <symbol> | /trade top',
-  summary: 'market data lookups',
-  category: 'trading',
-  async handler({ argv }) {
-    const sub = argv[0] ?? 'top'
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const trading = require('../trading/market') as typeof import('../trading/market')
-    if (sub === 'price') {
-      const sym = argv[1]
-      if (!sym) return { kind: 'error', message: 'Usage: /trade price <symbol>' }
-      const q = await trading.price(sym)
-      if (!q) return { kind: 'display', text: `No quote for ${sym}.` }
-      const sign = q.change24hPct >= 0 ? '+' : ''
-      return {
-        kind: 'display-md',
-        markdown: `**${q.symbol}** — $${q.priceUsd.toFixed(q.priceUsd < 1 ? 4 : 2)} (${sign}${q.change24hPct.toFixed(2)}% 24h)`,
-      }
-    }
-    if (sub === 'top') {
-      const top = await trading.topTickers(10)
-      const md = top
-        .map(
-          (t, i) =>
-            `${i + 1}. **${t.symbol}** $${t.priceUsd.toFixed(2)} (${
-              t.change24hPct >= 0 ? '+' : ''
-            }${t.change24hPct.toFixed(2)}%)`,
-        )
-        .join('\n')
-      return { kind: 'display-md', markdown: '### Top markets\n\n' + md }
-    }
-    return { kind: 'error', message: 'Usage: /trade price <sym> | /trade top' }
-  },
-}
-
 const cmdConfig: BuiltinCommand = {
   name: 'config',
   usage: '/config get <key> | /config set <key> <value>',
-  summary: 'view or edit the iBank config',
+  summary: 'view or edit the WishCode config',
   category: 'developer',
   async handler({ argv }) {
     const cfg = await readConfig()
@@ -419,7 +319,7 @@ const cmdPlan: BuiltinCommand = {
 
 const cmdPaths: BuiltinCommand = {
   name: 'paths',
-  summary: 'show important iBank paths on disk',
+  summary: 'show important WishCode paths on disk',
   category: 'developer',
   async handler() {
     const p = paths()
@@ -465,6 +365,246 @@ const cmdQuit: BuiltinCommand = {
   },
 }
 
+// ── Coding commands (prompt transforms) ────────────────────────────
+//
+// These rewrite the user's message into a focused prompt, then let the
+// turn-loop run normally. Plain commands (no args) emit a best-effort
+// default brief; commands with args forward them verbatim.
+
+const cmdReview: BuiltinCommand = {
+  name: 'review',
+  usage: '/review [path or diff summary]',
+  summary: 'code review of the current change or a specific path',
+  category: 'coding',
+  async handler({ argv }) {
+    const scope = argv.join(' ').trim()
+    const prompt = scope
+      ? `Please review ${scope} for bugs, unclear naming, missing edge cases, and security issues. ` +
+        'Read the relevant files with fs_read and flag concrete problems with file_path:line references. ' +
+        'End with a prioritized fix list.'
+      : 'Review the most recently-changed files in the workspace (use fs_glob to find them). ' +
+        'Flag bugs, unclear naming, missing edge cases, security issues. Use file_path:line references. ' +
+        'End with a prioritized fix list.'
+    return { kind: 'prompt', prompt, tag: 'review' }
+  },
+}
+
+const cmdTest: BuiltinCommand = {
+  name: 'test',
+  usage: '/test [scope]',
+  summary: 'run the project test suite and summarize failures',
+  category: 'coding',
+  async handler({ argv }) {
+    const scope = argv.join(' ').trim()
+    const prompt = scope
+      ? `Run the tests for ${scope}. Use shell_bash to detect the project's test runner ` +
+        '(npm test / pnpm test / pytest / cargo test / go test) and invoke it scoped to this target. ' +
+        'Summarize failures with file_path:line references and propose fixes.'
+      : 'Run the full project test suite. Use shell_bash to detect the runner ' +
+        '(npm test / pnpm test / pytest / cargo test / go test) and invoke it. ' +
+        'Summarize failures with file_path:line references and propose fixes.'
+    return { kind: 'prompt', prompt, tag: 'test' }
+  },
+}
+
+const cmdRefactor: BuiltinCommand = {
+  name: 'refactor',
+  usage: '/refactor <description>',
+  summary: 'plan and apply a refactor',
+  category: 'coding',
+  async handler({ argv }) {
+    const desc = argv.join(' ').trim()
+    if (!desc) return { kind: 'error', message: 'Usage: /refactor <describe the refactor>' }
+    const prompt =
+      `Plan and then apply this refactor: ${desc}\n\n` +
+      '1. Use fs_glob/fs_grep to map every usage site.\n' +
+      '2. Present a short numbered plan.\n' +
+      '3. Execute edits via fs_edit (keep changes minimal and type-safe).\n' +
+      '4. Run the typechecker/tests to verify.'
+    return { kind: 'prompt', prompt, tag: 'refactor' }
+  },
+}
+
+const cmdInit: BuiltinCommand = {
+  name: 'init',
+  summary: 'create a CLAUDE.md for this workspace',
+  category: 'coding',
+  async handler() {
+    const prompt =
+      'Analyze this workspace and create a CLAUDE.md at the workspace root. Use fs_glob to find ' +
+      'package.json/pyproject.toml/Cargo.toml/go.mod, read the top-level README and source tree, and ' +
+      'produce a concise file covering: (1) project purpose, (2) how to run/build/test, (3) code layout, ' +
+      '(4) coding conventions worth knowing. Write it via fs_write. Keep it under 200 lines.'
+    return { kind: 'prompt', prompt, tag: 'init' }
+  },
+}
+
+// ── Inspection commands (terminal displays) ────────────────────────
+
+const cmdTodos: BuiltinCommand = {
+  name: 'todos',
+  summary: 'show the current session todo list',
+  category: 'tasks',
+  async handler({ sessionId }) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getTodos } = require('../tools/todo-write') as typeof import('../tools/todo-write')
+    const items = getTodos(sessionId)
+    if (items.length === 0) return { kind: 'display', text: 'No todos for this session.' }
+    const icon = (s: string) => s === 'completed' ? '✓' : s === 'in_progress' ? '▶' : '·'
+    const md = items.map((t) => {
+      const label = t.status === 'in_progress' ? t.activeForm : t.content
+      return `${icon(t.status)} ${label}`
+    }).join('\n')
+    return { kind: 'display-md', markdown: '### Todos\n\n```\n' + md + '\n```' }
+  },
+}
+
+const cmdTasks: BuiltinCommand = {
+  name: 'tasks',
+  summary: 'list background tasks',
+  category: 'tasks',
+  async handler() {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { listTasks } = require('../tasks/manager') as typeof import('../tasks/manager')
+    const all = listTasks()
+    if (all.length === 0) return { kind: 'display', text: 'No background tasks.' }
+    const rows = all.slice(0, 30).map((t) => {
+      const when = new Date(t.createdAt).toLocaleString()
+      return `- **${t.id}** · _${t.status}_ · ${when} — ${t.title}`
+    })
+    return { kind: 'display-md', markdown: '### Background tasks\n\n' + rows.join('\n') }
+  },
+}
+
+const cmdMcp: BuiltinCommand = {
+  name: 'mcp',
+  usage: '/mcp list | /mcp reload',
+  summary: 'list MCP servers or reconnect them',
+  category: 'mcp',
+  async handler({ argv }) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { listServers, shutdownAll } = require('../mcp/manager') as typeof import('../mcp/manager')
+    if (argv[0] === 'reload') {
+      shutdownAll()
+      const servers = await listServers()
+      return { kind: 'display', text: `Reconnected ${servers.length} MCP server(s).` }
+    }
+    const servers = await listServers()
+    if (servers.length === 0) {
+      const file = require('path').join(paths().configDir, 'mcp.json')
+      return {
+        kind: 'display-md',
+        markdown: `No MCP servers configured. Create **${file}** with a \`{ "servers": { ... } }\` block.`,
+      }
+    }
+    const rows = servers.map((s) => {
+      const info = s.serverInfo?.name ? ` · ${s.serverInfo.name} v${s.serverInfo.version ?? '?'}` : ''
+      const err = s.error ? ` — _${s.error}_` : ''
+      return `- **${s.id}** · _${s.status}_ · ${s.tools.length} tools · ${s.resources.length} resources${info}${err}`
+    })
+    return { kind: 'display-md', markdown: '### MCP servers\n\n' + rows.join('\n') }
+  },
+}
+
+const cmdWorkspace: BuiltinCommand = {
+  name: 'workspace',
+  aliases: ['cwd'],
+  usage: '/workspace [path]',
+  summary: 'show or change the workspace root',
+  category: 'developer',
+  async handler({ argv }) {
+    if (argv.length === 0) {
+      return { kind: 'display', text: `Workspace: ${workspaceRoot()}` }
+    }
+    const abs = argv.join(' ').trim()
+    try {
+      setWorkspaceRoot(abs)
+      return { kind: 'display', text: `Workspace set to ${workspaceRoot()}` }
+    } catch (e) {
+      return { kind: 'error', message: (e as Error).message }
+    }
+  },
+}
+
+const cmdCron: BuiltinCommand = {
+  name: 'cron',
+  usage: '/cron list | /cron run <id> | /cron delete <id> | /cron toggle <id>',
+  summary: 'inspect or control scheduled prompts',
+  category: 'tasks',
+  async handler({ argv }) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const sched = require('../cron/scheduler') as typeof import('../cron/scheduler')
+    const sub = argv[0] ?? 'list'
+    if (sub === 'list') {
+      const all = sched.listSchedules()
+      if (all.length === 0) return { kind: 'display', text: 'No schedules.' }
+      const rows = all.map((s) => {
+        const last = s.lastRunAt ? new Date(s.lastRunAt).toLocaleString() : 'never'
+        const flag = s.disabled ? ' (disabled)' : ''
+        return `- **${s.id}** · \`${s.expression}\` · last: ${last}${flag} — ${s.name}`
+      })
+      return { kind: 'display-md', markdown: '### Schedules\n\n' + rows.join('\n') }
+    }
+    const id = argv[1]
+    if (!id) return { kind: 'error', message: `Usage: /cron ${sub} <id>` }
+    if (sub === 'run') {
+      const entry = sched.getSchedule(id)
+      if (!entry) return { kind: 'error', message: `no such schedule: ${id}` }
+      const taskId = sched.fireSchedule(entry)
+      return { kind: 'display', text: taskId ? `Fired ${id} → task ${taskId}` : `Schedule is disabled.` }
+    }
+    if (sub === 'delete') {
+      const ok = sched.deleteSchedule(id)
+      return { kind: 'display', text: ok ? `Deleted ${id}.` : `No schedule with id ${id}.` }
+    }
+    if (sub === 'toggle') {
+      const cur = sched.getSchedule(id)
+      if (!cur) return { kind: 'error', message: `no such schedule: ${id}` }
+      const next = sched.updateSchedule(id, { disabled: !cur.disabled })!
+      return { kind: 'display', text: `${id} is now ${next.disabled ? 'disabled' : 'enabled'}.` }
+    }
+    return { kind: 'error', message: 'Usage: /cron list | /cron run <id> | /cron delete <id> | /cron toggle <id>' }
+  },
+}
+
+const cmdHooks: BuiltinCommand = {
+  name: 'hooks',
+  summary: 'show the path to hooks.json',
+  category: 'developer',
+  async handler() {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const p = require('path') as typeof import('path')
+    const file = p.join(paths().configDir, 'hooks.json')
+    return {
+      kind: 'display-md',
+      markdown:
+        '### Hooks\n\nEdit **' + file + '**. Schema:\n\n' +
+        '```json\n' +
+        JSON.stringify({
+          PreToolUse: [{ matcher: 'shell_bash|fs_write', hooks: [{ type: 'command', command: 'echo blocked >&2; exit 2' }] }],
+          PostToolUse: [{ matcher: '*', hooks: [{ type: 'command', command: 'cat >> ~/.wishcode/audit.log' }] }],
+          UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'echo note injected' }] }],
+          Stop: [{ hooks: [{ type: 'command', command: 'osascript -e "display notification \\"done\\""' }] }],
+        }, null, 2) +
+        '\n```',
+    }
+  },
+}
+
+const cmdAgent: BuiltinCommand = {
+  name: 'agent',
+  usage: '/agent <task>',
+  summary: 'spawn a sub-agent to handle a self-contained task',
+  category: 'coding',
+  async handler({ argv }) {
+    const task = argv.join(' ').trim()
+    if (!task) return { kind: 'error', message: 'Usage: /agent <self-contained task>' }
+    const prompt =
+      `Use the \`agent_task\` tool to run this in an isolated sub-session so my main context stays clean:\n\n${task}`
+    return { kind: 'prompt', prompt, tag: 'agent' }
+  },
+}
+
 export const BUILTINS: BuiltinCommand[] = [
   cmdHelp,
   cmdVersion,
@@ -476,11 +616,22 @@ export const BUILTINS: BuiltinCommand[] = [
   cmdCompact,
   cmdExport,
   cmdMemoryAdd,
-  cmdWallet,
-  cmdTrade,
   cmdConfig,
   cmdPlan,
   cmdPaths,
   cmdSkills,
   cmdQuit,
+  // Coding
+  cmdReview,
+  cmdTest,
+  cmdRefactor,
+  cmdInit,
+  cmdAgent,
+  // Inspection
+  cmdTodos,
+  cmdTasks,
+  cmdMcp,
+  cmdWorkspace,
+  cmdCron,
+  cmdHooks,
 ]

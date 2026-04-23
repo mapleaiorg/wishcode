@@ -7,7 +7,7 @@
  *   xai        — API key (Grok)
  *   gemini     — API key (Google AI Studio)
  *   ollama     — local URL, liveness probed
- *   openibank  — optional server (future; stub now)
+ *   hermon     — optional server account (future; stub now)
  */
 
 import { readConfig, writeConfig, CONFIG_DIR, CONFIG_FILE } from '../core/config.js'
@@ -16,7 +16,7 @@ import { OAuthService, persistTokens, clearTokens } from './oauth.js'
 
 const log = createLogger('auth')
 
-export type Provider = 'anthropic' | 'openai' | 'xai' | 'gemini' | 'ollama' | 'openibank'
+export type Provider = 'anthropic' | 'openai' | 'xai' | 'gemini' | 'ollama' | 'hermon'
 
 export interface AuthStatus {
   configDir: string
@@ -28,7 +28,7 @@ export interface AuthStatus {
     xai:       { configured: boolean; apiKey: string | null }
     gemini:    { configured: boolean; apiKey: string | null }
     ollama:    { configured: boolean; baseUrl: string; live: boolean }
-    openibank: { configured: boolean; account: { email?: string; accountUuid?: string } | null }
+    hermon: { configured: boolean; account: { email?: string; accountUuid?: string } | null }
   }
 }
 
@@ -72,7 +72,7 @@ export async function authStatus(): Promise<AuthStatus> {
       xai:       { configured: !!xaiKey,    apiKey: maskKey(xaiKey) },
       gemini:    { configured: !!geminiKey, apiKey: maskKey(geminiKey) },
       ollama:    { configured: ollamaLive, baseUrl: ollamaUrl, live: ollamaLive },
-      openibank: { configured: !!account, account },
+      hermon: { configured: !!account, account },
     },
   }
 }
@@ -103,7 +103,7 @@ export async function authLogin(provider: Provider, creds: Record<string, any>):
       const data = await r.json().catch(() => ({ models: [] })) as { models?: { name: string }[] }
       return { ok: true, provider, info: { baseUrl: url, models: (data.models ?? []).map(m => m.name) } }
     }
-    case 'openibank':
+    case 'hermon':
       if (!creds.email) throw new Error('email required')
       writeConfig(cfg => {
         cfg.oauthAccount = { email: creds.email, accountUuid: creds.accountUuid || `local-${Date.now()}` }
@@ -127,7 +127,7 @@ export async function authLogout(provider: Provider): Promise<void> {
       case 'xai':       delete cfg.env.XAI_API_KEY; break
       case 'gemini':    delete cfg.env.GEMINI_API_KEY; break
       case 'ollama':    delete cfg.env.OLLAMA_BASE_URL; break
-      case 'openibank': delete cfg.oauthAccount; break
+      case 'hermon': delete cfg.oauthAccount; break
     }
     return cfg
   })

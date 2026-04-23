@@ -32,7 +32,7 @@ export interface CommandDef {
   aliases?: string[]
   summary: string
   usage?: string
-  category: 'core' | 'wallet' | 'trading' | 'memory' | 'session' | 'model' | 'developer'
+  category: 'core' | 'memory' | 'session' | 'model' | 'developer' | 'coding' | 'tasks' | 'mcp'
   handler: (ctx: CommandContext) => Promise<CommandResult>
 }
 

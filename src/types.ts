@@ -1,12 +1,12 @@
 /**
- * Renderer-side mirror of the preload `window.ibank` surface.
+ * Renderer-side mirror of the preload `window.wish` surface.
  *
  * Keep in sync with /electron/preload.ts. The preload is the source of
  * truth; this file is a runtime-safe subset used to type-check the
  * renderer without importing electron.
  */
 
-export type Provider = 'anthropic' | 'openai' | 'xai' | 'gemini' | 'ollama' | 'openibank'
+export type Provider = 'anthropic' | 'openai' | 'xai' | 'gemini' | 'ollama' | 'hermon'
 
 export interface AuthStatusEntry {
   provider: Provider
@@ -25,7 +25,7 @@ export interface AuthStatusResponse {
     xai:       { configured: boolean; apiKey: string | null }
     gemini:    { configured: boolean; apiKey: string | null }
     ollama:    { configured: boolean; baseUrl: string; live: boolean }
-    openibank: { configured: boolean; account: { email?: string; accountUuid?: string } | null }
+    hermon:    { configured: boolean; account: { email?: string; accountUuid?: string } | null }
   }
 }
 
@@ -75,89 +75,21 @@ export interface Conversation {
   createdAt: number
   updatedAt?: number
   pinned?: boolean
+  /**
+   * Archived conversations are hidden from the main sidebar list but still
+   * accessible from the History view. Kept as an optional flag so existing
+   * sessions migrate cleanly with undefined = false.
+   */
+  archived?: boolean
   messages: Message[]
-}
-
-// ── Wallet --------------------------------------------------------------
-
-export type ChainId =
-  | 'eth' | 'arbitrum' | 'optimism' | 'base' | 'polygon' | 'bsc'
-  | 'btc' | 'solana' | 'tron'
-
-export interface WalletStatusView {
-  exists: boolean
-  unlocked: boolean
-  idleMsRemaining: number
-}
-
-export interface WalletAccount {
-  chain: ChainId
-  address: string
-  derivationPath: string
-  symbol: string
-}
-
-export interface BalanceView {
-  chain: ChainId
-  symbol: string
-  raw: string
-  formatted: string
-  usdValue?: number
-}
-
-export interface TxEntry {
-  chain: ChainId
-  hash: string
-  direction: 'in' | 'out' | 'self'
-  from: string
-  to: string
-  amount: string
-  amountRaw: string
-  symbol: string
-  feeRaw?: string
-  feeSymbol?: string
-  timestamp?: number
-  blockNumber?: number
-  status: 'pending' | 'confirmed' | 'failed'
-  explorerUrl?: string
-  note?: string
-}
-
-export interface FeeEstimate {
-  chain: ChainId
-  symbol: string
-  fee: string
-  feeRaw: string
-  unitPrice: string
-  units: string
-  priorityFeeRaw?: string
-  maxFeePerGasRaw?: string
-}
-
-export interface SendPreview {
-  chain: ChainId
-  from: string
-  to: string
-  amount: string
-  amountRaw: string
-  symbol: string
-  decimals: number
-  fee: FeeEstimate
-  totalRaw: string
-  usdValue?: number
-  policy: {
-    allowed: boolean
-    reasons: string[]
-    requiresPassphrase: boolean
-    todaySpentUsd: number
-    limits: any
-  }
-}
-
-export interface SendResult {
-  hash: string
-  chain: string
-  explorerUrl: string
+  /**
+   * Last model this conversation was run against. When the user reopens
+   * an older chat, the app restores this as the active global model so
+   * the thread stays consistent with whatever produced its history.
+   * `undefined` on new conversations — they adopt whatever the global
+   * picker currently points at.
+   */
+  lastModel?: CurrentModel
 }
 
 // ── Memory / skills / commands ------------------------------------------
@@ -221,150 +153,11 @@ export interface BuddyView {
   sinceMs: number
 }
 
-// ── Trading -------------------------------------------------------------
-
-export interface Quote {
-  symbol: string
-  priceUsd: number
-  change24hPct: number
-  marketCapUsd?: number
-  volume24hUsd?: number
-  updatedAt: number
-}
-
-// ── NFT --------------------------------------------------------------
-
-export type NftStandard = 'erc721' | 'erc1155' | 'unknown'
-
-export interface NftAttribute {
-  trait_type: string
-  value: string | number
-  display_type?: string
-}
-
-export interface NftMetadata {
-  name?: string
-  description?: string
-  image?: string
-  externalUrl?: string
-  attributes?: NftAttribute[]
-  raw?: unknown
-}
-
-export interface NftAsset {
-  key: string
-  chain: ChainId
-  contract: string
-  tokenId: string
-  standard: NftStandard
-  owner: string
-  balance: string
-  acquiredAt?: number
-  metadata?: NftMetadata
-  metadataFetchedAt?: number
-}
-
-// ── CryptoBuddies ----------------------------------------------------
-
-export type BuddyRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic'
-export type BuddyElement = 'btc' | 'eth' | 'sol' | 'stable' | 'defi' | 'meme' | 'index' | 'private'
-
-export interface BuddyGenome {
-  body: string
-  eyes: string
-  mouth: string
-  aura: string
-  element: BuddyElement
-  rarity: BuddyRarity
-  level: number
-  seed: string
-}
-
-export interface CryptoBuddy {
-  id: string
-  name: string
-  genome: BuddyGenome
-  ownerId: string
-  mintedAt: number
-  mintedFrom: 'genesis' | 'breed' | 'bridge'
-  parentIds?: [string, string]
-  lastTransferredAt?: number
-  priceListingUsd?: number
-  chainRef?: { chain: string; contract: string; tokenId: string }
-}
-
-// ── FinancialBuddies -------------------------------------------------
-
-export type FinancialRole =
-  | 'assistant' | 'advisor' | 'arbitrator' | 'trader'
-  | 'research' | 'risk' | 'treasurer' | 'tax' | 'compliance'
-
-export interface FinancialBuddyPersona {
-  id: string
-  title: string
-  role: FinancialRole
-  tagline: string
-  preferredModelHint?: string
-  tools?: string[]
-  glyph?: string
-  systemPrompt: string
-}
-
-// ── Harness ----------------------------------------------------------
-
-export type HarnessKind = 'backtest' | 'monteCarlo' | 'stress' | 'policy' | 'yield'
-
-export interface BacktestMetrics {
-  totalReturnPct: number
-  cagrPct: number
-  sharpe: number
-  sortino: number
-  maxDrawdownPct: number
-  hitRatePct: number
-  trades: number
-}
-
-export interface BacktestResult {
-  runId: string
-  kind: 'backtest'
-  symbol: string
-  strategy: string
-  startTs: number
-  endTs: number
-  bars: number
-  metrics: BacktestMetrics
-  equity: Array<{ ts: number; value: number; position: -1 | 0 | 1 }>
-}
-
-export interface MonteCarloResult {
-  runId: string
-  kind: 'monteCarlo'
-  input: {
-    symbol: string; spotUsd: number; annualDriftPct: number; annualVolPct: number
-    horizonDays: number; paths: number; benchmarkAnnualPct?: number
-  }
-  endPrices: { p05: number; p25: number; p50: number; p75: number; p95: number }
-  endReturns:  { p05: number; p25: number; p50: number; p75: number; p95: number }
-  var95Pct: number
-  cvar95Pct: number
-  probOfLossPct: number
-  pathsPreview: number[][]
-}
-
-export interface StressScenario {
-  id: string
-  name: string
-  shocks: Record<string, number>
-  defaultPct: number
-  tradFi?: { sp500Pct: number; goldPct: number; dollarPct: number }
-  notes: string
-}
-
-// ── The `window.ibank` api ---------------------------------------------
+// ── The `window.wish` api ---------------------------------------------
 
 type Unsub = () => void
 
-export interface IBankApi {
+export interface WishApi {
   app: {
     version(): Promise<{ version: string }>
     paths(): Promise<Record<string, string>>
@@ -390,6 +183,7 @@ export interface IBankApi {
     list(): Promise<ModelListResponse>
     set(provider: string, name: string): Promise<void>
     current(): Promise<CurrentModel>
+    onChanged(cb: (payload: { from: CurrentModel; to: CurrentModel; ts: number }) => void): Unsub
   }
   memory: {
     add(body: string, opts?: { tags?: string[]; pinned?: boolean }): Promise<MemoryEntry>
@@ -398,34 +192,6 @@ export interface IBankApi {
     update(id: string, patch: Partial<MemoryEntry>): Promise<MemoryEntry | null>
     recall(query: string, limit?: number): Promise<MemoryEntry[]>
     onChanged(cb: () => void): Unsub
-  }
-  wallet: {
-    status(): Promise<WalletStatusView>
-    accounts(): Promise<WalletAccount[]>
-    balances(): Promise<BalanceView[]>
-    create(passphrase: string, mnemonic?: string): Promise<{ mnemonic: string; addresses: Record<string, string> }>
-    unlock(passphrase: string): Promise<Record<string, string>>
-    lock(): Promise<void>
-    revealMnemonic(passphrase: string): Promise<string>
-    remove(passphrase: string): Promise<void>
-    policyGet(): Promise<any>
-    policySet(patch: any): Promise<any>
-    history(chain: string, address: string): Promise<TxEntry[]>
-    sendPreview(chain: string, to: string, amount: string): Promise<SendPreview>
-    send(opts: { chain: string; to: string; amount: string; passphrase?: string }): Promise<SendResult>
-    onLockChanged(cb: (payload: { unlocked: boolean }) => void): Unsub
-  }
-  trading: {
-    price(sym: string): Promise<Quote | null>
-    prices(syms: string[]): Promise<Record<string, Quote>>
-    top(limit?: number): Promise<Quote[]>
-    ohlcv(sym: string, interval?: '1h' | '4h' | '1d', limit?: number): Promise<any[]>
-    tickerStart(symbols: string[], intervalMs?: number): Promise<void>
-    tickerStop(): Promise<void>
-    sourceGet(): Promise<string>
-    sourceList(): Promise<Array<{ id: string; label: string; note: string }>>
-    sourceSet(source: string): Promise<string>
-    onPrice(cb: (payload: { symbol: string; price: number; ts: number }) => void): Unsub
   }
   skills: {
     list(): Promise<SkillInfo[]>
@@ -470,53 +236,73 @@ export interface IBankApi {
     dismiss(id: string): Promise<void>
     onUpdate(cb: (payload: BuddyView) => void): Unsub
   }
-  nft: {
-    list(chain?: string, owner?: string): Promise<NftAsset[]>
-    refresh(chain: string, owner: string, fromBlock?: number): Promise<{ added: number; removed: number; total: number }>
-    metadata(key: string): Promise<NftMetadata>
-    buildTransfer(key: string, to: string, amount?: string): Promise<{ to: string; data: string; chain: string }>
-    clear(): Promise<boolean>
-    onUpdated(cb: (payload: any) => void): Unsub
+  tools: {
+    list(): Promise<Array<{
+      name: string
+      title: string
+      description: string
+      category: string
+      permission: 'auto' | 'ask' | 'plan' | 'bypass'
+      dangerous: boolean
+      inputSchema: any
+    }>>
   }
-  cryptoBuddies: {
-    list(owner?: string, listed?: boolean): Promise<CryptoBuddy[]>
-    get(id: string): Promise<CryptoBuddy | null>
-    mint(opts?: { name?: string; seed?: string; owner?: string }): Promise<CryptoBuddy>
-    breed(a: string, b: string, opts?: { name?: string }): Promise<CryptoBuddy>
-    transfer(id: string, to: string): Promise<CryptoBuddy>
-    trade(a: string, b: string, priceUsd?: number): Promise<{ a: CryptoBuddy; b: CryptoBuddy }>
-    listForSale(id: string, priceUsd: number): Promise<CryptoBuddy>
-    unlist(id: string): Promise<CryptoBuddy>
-    retire(id: string, reason?: string): Promise<boolean>
-    ensureGenesis(): Promise<CryptoBuddy[]>
-    ledger(limit?: number): Promise<any[]>
-    onUpdated(cb: (payload: any) => void): Unsub
+  askUser: {
+    onQuestion(cb: (payload: {
+      requestId: string
+      sessionId: string
+      question: string
+      options: string[]
+      allowFreeText: boolean
+    }) => void): Unsub
+    answer(requestId: string, answer: { choice: string; text?: string }): Promise<boolean>
   }
-  financialBuddies: {
-    list(): Promise<FinancialBuddyPersona[]>
-    get(id: string): Promise<FinancialBuddyPersona | null>
-    active(): Promise<string>
-    setActive(id: string): Promise<FinancialBuddyPersona>
-    override(id: string, patch: Partial<FinancialBuddyPersona>): Promise<FinancialBuddyPersona>
-    reset(): Promise<boolean>
-    onUpdated(cb: (payload: any) => void): Unsub
+  workspace: {
+    get(): Promise<string>
+    set(dir: string): Promise<string>
   }
-  harness: {
-    backtest(args: any): Promise<BacktestResult>
-    monteCarlo(args: any): Promise<MonteCarloResult>
-    stress(args: any): Promise<any>
-    yieldProject(args: any): Promise<any>
-    policyCheck(args: any): Promise<any>
-    listRuns(limit?: number): Promise<any[]>
-    readRun(runId: string): Promise<any>
-    scenarios(): Promise<StressScenario[]>
-    onProgress(cb: (payload: any) => void): Unsub
-    onResult(cb: (payload: any) => void): Unsub
+  todos: {
+    get(sessionId: string): Promise<Array<{
+      content: string
+      activeForm: string
+      status: 'pending' | 'in_progress' | 'completed'
+    }>>
+  }
+  mcp: {
+    servers(): Promise<Array<{
+      id: string
+      status: 'connecting' | 'ready' | 'error' | 'closed'
+      error?: string
+      tools: any[]
+      resources: any[]
+      serverInfo?: { name?: string; version?: string }
+      protocolVersion?: string
+    }>>
+    tools(): Promise<Array<{ server: string; tool: string; description?: string; inputSchema?: any }>>
+    resources(): Promise<Array<{ server: string; uri: string; name?: string; mimeType?: string }>>
+    callTool(server: string, tool: string, args?: any): Promise<any>
+    readResource(server: string, uri: string): Promise<any>
+    shutdown(): Promise<void>
+  }
+  cron: {
+    list(): Promise<Array<{
+      id: string; name: string; expression: string; prompt: string;
+      disabled?: boolean; lastRunAt?: number; lastRunTaskId?: string;
+      runCount?: number; createdAt: number;
+    }>>
+    create(input: { name: string; expression: string; prompt: string }): Promise<any>
+    update(id: string, patch: any): Promise<any>
+    delete(id: string): Promise<boolean>
+    runNow(id: string): Promise<{ taskId: string | null }>
+  }
+  hooks: {
+    read(): Promise<{ file: string; content: string }>
+    write(content: string): Promise<{ file: string }>
   }
 }
 
 declare global {
   interface Window {
-    ibank: IBankApi
+    wish: WishApi
   }
 }

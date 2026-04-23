@@ -6,6 +6,7 @@
  */
 
 import { readConfig, writeConfig } from '../core/config.js'
+import { emit } from '../core/events.js'
 import type { Provider } from '../auth/auth.js'
 
 export interface ModelInfo {
@@ -21,14 +22,19 @@ export const DEFAULT_MODEL_BY_PROVIDER: Record<Provider, string> = {
   xai:       'grok-3-mini',
   gemini:    'gemini-2.0-flash-exp',
   ollama:    'llama3.2',
-  openibank: 'openibank-default',
+  hermon: 'hermon-default',
 }
 
 export function inferProvider(model: string): Provider {
-  if (model.startsWith('claude')) return 'anthropic'
-  if (model.startsWith('gpt-') || model.startsWith('o1') || model.startsWith('o3')) return 'openai'
-  if (model.startsWith('grok')) return 'xai'
-  if (model.startsWith('gemini')) return 'gemini'
+  // Ollama model tags commonly contain "/" or ":" (e.g. "sorc/qwen3.5-claude-4.6-opus:9b").
+  // The "claude" substring in an Ollama tag must not trick us into calling Anthropic.
+  // Anthropic official IDs never contain "/" or ":", so treat those separators as an
+  // unambiguous Ollama signal and short-circuit before the keyword matches below.
+  if (model.includes('/') || model.includes(':')) return 'ollama'
+  if (/^claude(-|$)/i.test(model)) return 'anthropic'
+  if (/^(gpt-|o1|o3)/i.test(model)) return 'openai'
+  if (/^grok/i.test(model)) return 'xai'
+  if (/^gemini/i.test(model)) return 'gemini'
   if (/^(llama|mistral|phi|qwen|gemma|deepseek)/i.test(model)) return 'ollama'
   return 'anthropic'
 }
@@ -88,12 +94,26 @@ export async function modelList(): Promise<{ current: string; available: ModelIn
 
 export async function modelSet(model: string, provider?: Provider): Promise<{ model: string; provider: Provider }> {
   const resolvedProvider = provider ?? inferProvider(model)
+  const before = currentModel()
   writeConfig(cfg => {
     cfg.mainLoopModel = model
     cfg.mainLoopModelProvider = resolvedProvider
     if (resolvedProvider === 'anthropic') cfg.lastAnthropicModel = model
     return cfg
   })
+  const changed =
+    before.model !== model || before.provider !== resolvedProvider
+  if (changed) {
+    // Fan out so renderer can surface a toast, write a transcript marker,
+    // or offer to start a fresh chat. The turn-loop also consults this
+    // to know whether to prepend a "[model switched]" system note so the
+    // new model isn't blindsided by prior tool-use blocks it can't reuse.
+    emit('model.changed', {
+      from: before,
+      to: { model, provider: resolvedProvider },
+      ts: Date.now(),
+    })
+  }
   return { model, provider: resolvedProvider }
 }
 

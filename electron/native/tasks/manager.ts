@@ -6,7 +6,7 @@
  * agents). Emits `tasks.update` for UI, `tasks.changed` with running count
  * for the buddy.
  *
- * Persisted as ~/.ibank/tasks/tasks.json on mutation. Not a replacement for
+ * Persisted as ~/.wishcode/tasks/tasks.json on mutation. Not a replacement for
  * a proper job queue — meant for single-user desktop scope.
  */
 

@@ -22,44 +22,27 @@ export * as Model from './llm/model.js'
 
 export * as Memory from './memory/memdir.js'
 
-export * as Chains from './wallet/chains.js'
-export * as Derivation from './wallet/derivation.js'
-export * as Keystore from './wallet/keystore.js'
-export * as WalletStatus from './wallet/status.js'
-export * as Rpc from './wallet/rpc.js'
-export * as Balance from './wallet/balance.js'
-export * as Policy from './wallet/policy.js'
-export * as TxHistory from './wallet/txHistory.js'
-export * as Send from './wallet/send.js'
-
 export * as Skills from './skills/registry.js'
 
 export * as Commands from './commands/registry.js'
 
 export * as Tools from './tools/registry.js'
 
-export * as Trading from './trading/market.js'
-
 export * as Session from './session/transcript.js'
 
 export * as ModelFetch from './modelFetch/modelFetch.js'
-// Legacy alias — kept so existing call sites (`Native.Query.run(...)`) keep
-// working without touching ~50 IPC handlers. New code should use ModelFetch.
+// Alias — existing call sites use `Native.Query.run(...)`.
 export * as Query from './modelFetch/modelFetch.js'
-
-export * as Wallet from './wallet/keystore.js'
-export * as Nft from './wallet/nft.js'
-
-export * as CryptoBuddies from './cryptoBuddies/registry.js'
-export * as FinancialBuddies from './financialBuddies/registry.js'
-
-export * as Harness from './harness/engine.js'
 
 export * as Buddy from './buddy/state.js'
 
 export * as Tasks from './tasks/manager.js'
 
 export * as Swarm from './swarm/swarm.js'
+
+export * as Mcp from './mcp/manager.js'
+export * as Cron from './cron/scheduler.js'
+export * as Hooks from './hooks/runner.js'
 
 // Eager-start buddy so the renderer gets updates even if no code has
 // explicitly imported it.
@@ -68,3 +51,7 @@ startBuddy()
 
 // Eager-load tools so they're registered by the time the first chat runs.
 import './tools/registry.js'
+
+// Start the cron scheduler so scheduled prompts fire without a session.
+import { startScheduler } from './cron/scheduler.js'
+startScheduler()

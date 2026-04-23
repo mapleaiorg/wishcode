@@ -1,14 +1,18 @@
 /**
- * Sidebar footer companion.
+ * Sidebar footer companion. Presents buddy status/notifications with the
+ * Wish Code long mark.
  *
- * Keeps the existing buddy status/notification data, but presents it with
- * the official OpeniBank long mark instead of the previous smiley avatar.
+ * Layout: single horizontal row — [logo] "Wish Code" · [status message] —
+ * so the brand and the current mood/status read as one line at a glance.
+ * When the status message is long it ellipses; on hover the title attribute
+ * gives the full text. Keep this compact so the sidebar footer never
+ * wraps past two lines of chrome.
  */
 
 import React, { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { BuddyView } from '../types'
-import { OpeniBankLongMark } from './OpeniBankLongMark'
+import { Logo } from './Logo'
 
 const INITIAL: BuddyView = {
   mood: 'idle',
@@ -22,34 +26,39 @@ export function Buddy() {
   const [view, setView] = useState<BuddyView>(INITIAL)
 
   useEffect(() => {
-    void window.ibank?.buddy.get().then(setView).catch(() => {})
-    return window.ibank?.buddy.onUpdate(setView) ?? (() => {})
+    void window.wish?.buddy.get().then(setView).catch(() => {})
+    return window.wish?.buddy.onUpdate(setView) ?? (() => {})
   }, [])
+
+  const statusText = view.message || defaultMessage(view.mood)
 
   return (
     <div>
       <motion.div
-        className="ibn-buddy"
+        className="wsh-buddy"
         animate={cardAnim(view)}
         transition={{ duration: 0.8, repeat: shouldLoop(view) ? Infinity : 0, ease: 'easeInOut' }}
       >
-        <div className="ibn-buddy-brand">
-          <OpeniBankLongMark height={18} color="var(--brand)" />
+        <div className="wsh-buddy-row" title={statusText}>
+          <Logo size={16} />
+          <span className="wsh-buddy-wordmark">Wish Code</span>
+          <span className="wsh-buddy-sep">·</span>
+          <span className={`wsh-buddy-dot mood-${view.mood}`} aria-hidden />
+          <span className="wsh-buddy-status">{statusText}</span>
         </div>
-        <div className="ibn-buddy-message">{view.message || defaultMessage(view.mood)}</div>
       </motion.div>
 
       {view.notifications.length > 0 && (
-        <div className="ibn-buddy-notifications">
+        <div className="wsh-buddy-notifications">
           <AnimatePresence initial={false}>
             {view.notifications.map((n) => (
               <motion.div
                 key={n.id}
-                className={`ibn-buddy-note ${n.kind}`}
+                className={`wsh-buddy-note ${n.kind}`}
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, x: 30 }}
-                onClick={() => void window.ibank?.buddy.dismiss(n.id)}
+                onClick={() => void window.wish?.buddy.dismiss(n.id)}
                 style={{ cursor: 'pointer' }}
               >
                 {n.text}

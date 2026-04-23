@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OpeniBank</title>
+    <title>Wish Code</title>
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <script>
       try {
-        const choice = localStorage.getItem('ibank.theme') || 'system'
+        const choice = localStorage.getItem('wsh.theme') || 'system'
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
         const resolved = choice === 'system' ? (prefersDark ? 'dark' : 'light') : choice
         document.documentElement.setAttribute('data-theme', resolved)
