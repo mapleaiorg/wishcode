@@ -1,27 +1,140 @@
 /**
  * WishCode — Preload (contextIsolation + sandbox)
  *
- * Exposes a single `window.wish` surface to the renderer. Every method maps
- * to one `ipcMain.handle(wish:*)` channel in main.ts. Event subscriptions
- * use `ipcRenderer.on('wish:event:<channel>')` and return an unsubscribe
- * function.
+ * Exposes a single `window.wish` surface to the renderer. Every method
+ * routes through `invoke<channel>()`, which:
+ *   1. asks main for the protocol version (lazy, once) and throws
+ *      `WishError("protocol_violation")` on mismatch with
+ *      {@link IPC_PROTOCOL_VERSION},
+ *   2. invokes the channel handler over `ipcRenderer.invoke`,
+ *   3. unwraps the legacy `{ ok, value | error }` envelope (D-2 will
+ *      flip this to the canonical `{ ok, data | error }` shape),
+ *   4. validates `value` against the registry's response schema, and
+ *   5. throws `WishError("protocol_violation")` when validation fails.
+ *
+ * Event subscriptions use `ipcRenderer.on('wish:event:<topic>')` and
+ * return an unsubscribe function. Events are not validated here yet —
+ * D-2 lands strict event validation alongside main-process publishing.
  */
 
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 
-type IpcResult<T> = { ok: true; value: T } | { ok: false; error: string }
+import {
+  IPC_PROTOCOL_VERSION,
+  PROTO_VERSION_CHANNEL,
+} from './shared/ipc/version'
+import { WishError } from './shared/ipc/error'
+import { getChannelEntry } from './shared/ipc/registry'
 
-async function invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T> {
-  const res = (await ipcRenderer.invoke(channel, ...args)) as IpcResult<T>
-  if (!res.ok) throw new Error(res.error)
-  return res.value
+type LegacyOk<T> = { ok: true; value: T }
+type LegacyErr = { ok: false; error: string | { code?: string; message?: string; retryable?: boolean; cause?: string } }
+type LegacyResult<T> = LegacyOk<T> | LegacyErr
+
+// ── protocol-version handshake ───────────────────────────────────────
+// Fired lazily on the first invoke so unit tests that mock `ipcRenderer`
+// per-channel can opt in or out cleanly. Result memoised regardless of
+// outcome.
+
+let handshakePromise: Promise<void> | null = null
+
+async function ensureProtocolVersion(): Promise<void> {
+  if (handshakePromise) return handshakePromise
+  handshakePromise = (async () => {
+    let raw: unknown
+    try {
+      raw = await ipcRenderer.invoke(PROTO_VERSION_CHANNEL)
+    } catch (cause) {
+      // Main hasn't migrated yet (pre-D-2). Tolerate; D-2 makes this strict.
+      // eslint-disable-next-line no-console
+      console.warn('[wish:proto] handshake unavailable, assuming v1 main', cause)
+      return
+    }
+    // Accept either the canonical envelope or the legacy {ok, value} shape.
+    const envelope = raw as
+      | { ok: true; data?: { version?: number }; value?: { version?: number } }
+      | { ok: false; error: unknown }
+      | null
+      | undefined
+    if (!envelope || envelope.ok !== true) {
+      // eslint-disable-next-line no-console
+      console.warn('[wish:proto] handshake refused; running with legacy main')
+      return
+    }
+    const remote = (envelope.data?.version ?? envelope.value?.version) as number | undefined
+    if (typeof remote !== 'number') {
+      // eslint-disable-next-line no-console
+      console.warn('[wish:proto] handshake response missing version, skipping')
+      return
+    }
+    if (remote !== IPC_PROTOCOL_VERSION) {
+      throw new WishError(
+        'protocol_violation',
+        `IPC protocol version mismatch: renderer=${IPC_PROTOCOL_VERSION} main=${remote}`,
+        { retryable: false },
+      )
+    }
+  })()
+  return handshakePromise
 }
 
-function subscribe(channel: string, cb: (payload: any) => void): () => void {
-  const listener = (_: IpcRendererEvent, payload: any) => cb(payload)
+// ── invoke ───────────────────────────────────────────────────────────
+
+async function invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T> {
+  await ensureProtocolVersion()
+
+  const raw = (await ipcRenderer.invoke(channel, ...args)) as LegacyResult<T> | undefined
+
+  if (!raw || typeof raw !== 'object' || !('ok' in raw)) {
+    throw new WishError(
+      'protocol_violation',
+      `IPC channel "${channel}" returned a non-envelope payload`,
+      { retryable: false },
+    )
+  }
+
+  if (raw.ok === false) {
+    const e = raw.error
+    if (typeof e === 'string') {
+      throw new WishError('ipc.handler_threw', e, { retryable: false })
+    }
+    throw new WishError(
+      e?.code ?? 'ipc.handler_threw',
+      e?.message ?? 'IPC handler returned an error',
+      {
+        retryable: e?.retryable ?? false,
+        ...(e?.cause !== undefined ? { cause: e.cause } : {}),
+      },
+    )
+  }
+
+  // Validate response payload against the registry's schema.
+  const entry = getChannelEntry(channel)
+  if (!entry) {
+    throw new WishError(
+      'protocol_violation',
+      `IPC channel "${channel}" is not in the registry`,
+      { retryable: false },
+    )
+  }
+  const parsed = entry.response.safeParse(raw.value)
+  if (!parsed.success) {
+    throw new WishError(
+      'protocol_violation',
+      `IPC channel "${channel}" response failed schema validation: ${parsed.error.message}`,
+      { retryable: false, cause: JSON.stringify(parsed.error.flatten()) },
+    )
+  }
+  return parsed.data as T
+}
+
+function subscribe(channel: string, cb: (payload: unknown) => void): () => void {
+  const listener = (_: IpcRendererEvent, payload: unknown) => cb(payload)
   ipcRenderer.on(`wish:event:${channel}`, listener)
   return () => { ipcRenderer.off(`wish:event:${channel}`, listener) }
 }
+
+// ── api surface ──────────────────────────────────────────────────────
+// Same shape as v0; every call now runs through the validating invoke.
 
 const api = {
   app: {
@@ -30,11 +143,11 @@ const api = {
     quit: () => invoke<void>('wish:app:quit'),
     openExternal: (url: string) => invoke<void>('wish:app:openExternal', url),
     logs: (limit?: number) => invoke<Array<{ ts: number; level: string; scope: string; msg: string }>>('wish:app:logs', limit),
-    onLog: (cb: (entry: any) => void) => subscribe('log.entry', cb),
+    onLog: (cb: (entry: any) => void) => subscribe('log.entry', cb as (p: unknown) => void),
   },
   config: {
     get: (key?: string) => invoke<any>('wish:config:get', key),
-    set: (key: string, value: unknown) => invoke<boolean>('wish:config:set', key, value),
+    set: (key: string, value: unknown) => invoke<true>('wish:config:set', key, value),
   },
   auth: {
     status: () => invoke<Array<any>>('wish:auth:status'),
@@ -44,11 +157,11 @@ const api = {
     oauthStart: () => invoke<{ manualUrl: string; automaticUrl: string }>('wish:auth:oauthStart'),
     oauthSubmitCode: (code: string) => invoke<void>('wish:auth:oauthSubmitCode', code),
     oauthCancel: () => invoke<void>('wish:auth:oauthCancel'),
-    onOAuthComplete: (cb: (payload: any) => void) => subscribe('auth.oauthComplete', cb),
+    onOAuthComplete: (cb: (payload: any) => void) => subscribe('auth.oauthComplete', cb as (p: unknown) => void),
   },
   model: {
     list: () => invoke<Array<any>>('wish:model:list'),
-    set: (provider: string, name: string) => invoke<void>('wish:model:set', provider, name),
+    set: (provider: string, name: string) => invoke<{ provider: string; model: string }>('wish:model:set', provider, name),
     current: () => invoke<{ provider: string; model: string }>('wish:model:current'),
     onChanged: (
       cb: (payload: {
@@ -56,7 +169,7 @@ const api = {
         to: { provider: string; model: string }
         ts: number
       }) => void,
-    ) => subscribe('model.changed', cb),
+    ) => subscribe('model.changed', cb as (p: unknown) => void),
   },
   memory: {
     add: (body: string, opts?: { tags?: string[]; pinned?: boolean }) =>
@@ -65,7 +178,7 @@ const api = {
     remove: (id: string) => invoke<boolean>('wish:memory:remove', id),
     update: (id: string, patch: any) => invoke<any>('wish:memory:update', id, patch),
     recall: (query: string, limit?: number) => invoke<Array<any>>('wish:memory:recall', query, limit),
-    onChanged: (cb: () => void) => subscribe('memory.changed', cb),
+    onChanged: (cb: () => void) => subscribe('memory.changed', () => cb()),
   },
   skills: {
     list: () => invoke<Array<any>>('wish:skills:list'),
@@ -84,14 +197,14 @@ const api = {
     send: (sessionId: string, requestId: string, text: string, permission?: string) =>
       invoke<any>('wish:chat:send', sessionId, requestId, text, permission),
     abort: (requestId: string) => invoke<boolean>('wish:chat:abort', requestId),
-    onDelta: (cb: (payload: { requestId: string; text: string }) => void) => subscribe('chat.delta', cb),
-    onThinking: (cb: (payload: { requestId: string; text: string }) => void) => subscribe('chat.thinking', cb),
-    onToolUse: (cb: (payload: any) => void) => subscribe('chat.toolUse', cb),
-    onToolResult: (cb: (payload: any) => void) => subscribe('chat.toolResult', cb),
+    onDelta: (cb: (payload: { requestId: string; text: string }) => void) => subscribe('chat.delta', cb as (p: unknown) => void),
+    onThinking: (cb: (payload: { requestId: string; text: string }) => void) => subscribe('chat.thinking', cb as (p: unknown) => void),
+    onToolUse: (cb: (payload: any) => void) => subscribe('chat.toolUse', cb as (p: unknown) => void),
+    onToolResult: (cb: (payload: any) => void) => subscribe('chat.toolResult', cb as (p: unknown) => void),
     onDone: (cb: (payload: { requestId: string; usage: any; stopReason: string }) => void) =>
-      subscribe('chat.done', cb),
-    onError: (cb: (payload: { requestId: string; error: string }) => void) => subscribe('chat.error', cb),
-    onStatus: (cb: (payload: any) => void) => subscribe('query.status', cb),
+      subscribe('chat.done', cb as (p: unknown) => void),
+    onError: (cb: (payload: { requestId: string; error: string }) => void) => subscribe('chat.error', cb as (p: unknown) => void),
+    onStatus: (cb: (payload: any) => void) => subscribe('query.status', cb as (p: unknown) => void),
   },
   session: {
     read: (sessionId: string) => invoke<Array<any>>('wish:session:read', sessionId),
@@ -106,9 +219,9 @@ const api = {
     cancel: (id: string) => invoke<boolean>('wish:tasks:cancel', id),
     remove: (id: string) => invoke<boolean>('wish:tasks:remove', id),
     clearCompleted: () => invoke<number>('wish:tasks:clearCompleted'),
-    onUpdate: (cb: (payload: { id: string; task: any }) => void) => subscribe('tasks.update', cb),
+    onUpdate: (cb: (payload: { id: string; task: any }) => void) => subscribe('tasks.update', cb as (p: unknown) => void),
     onChanged: (cb: (payload: { runningCount: number; total: number }) => void) =>
-      subscribe('tasks.changed', cb),
+      subscribe('tasks.changed', cb as (p: unknown) => void),
   },
   swarm: {
     run: (brief: string) => invoke<any>('wish:swarm:run', brief),
@@ -116,7 +229,7 @@ const api = {
   buddy: {
     get: () => invoke<any>('wish:buddy:get'),
     dismiss: (id: string) => invoke<void>('wish:buddy:dismiss', id),
-    onUpdate: (cb: (payload: any) => void) => subscribe('buddy.update', cb),
+    onUpdate: (cb: (payload: any) => void) => subscribe('buddy.update', cb as (p: unknown) => void),
   },
   tools: {
     list: () => invoke<Array<{
@@ -128,7 +241,7 @@ const api = {
     onQuestion: (cb: (payload: {
       requestId: string; sessionId: string; question: string;
       options: string[]; allowFreeText: boolean;
-    }) => void) => subscribe('tool.askUser', cb),
+    }) => void) => subscribe('tool.askUser', cb as (p: unknown) => void),
     answer: (requestId: string, answer: { choice: string; text?: string }) =>
       invoke<boolean>('wish:askUser:answer', requestId, answer),
   },
@@ -166,5 +279,15 @@ const api = {
 } as const
 
 export type WishApi = typeof api
+
+// Internal hook for unit tests (resets the lazy handshake state).
+// Not exposed on `window.wish` and stripped in production main bundles.
+export const __testing__ = {
+  resetHandshake() {
+    handshakePromise = null
+  },
+  invoke,
+  ensureProtocolVersion,
+}
 
 contextBridge.exposeInMainWorld('wish', api)

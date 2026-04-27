@@ -17,6 +17,7 @@
     "start": "npm run build && npm run build:electron && node scripts/patch-dev-name.js && electron .",
     "electron:dev": "npm run build:electron && node scripts/patch-dev-name.js && NODE_ENV=development electron .",
     "typecheck": "tsc --noEmit && tsc -p electron/tsconfig.json --noEmit",
+    "test": "vitest run",
     "patch:dev-name": "node scripts/patch-dev-name.js",
     "build:icon": "node scripts/build-icon.mjs && bash scripts/build-icns.sh",
     "package:mac": "npm run build && npm run build:electron && npm run build:icon && electron-builder --mac",
@@ -40,7 +41,8 @@
     "rehype-raw": "^7.0.0",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.0",
-    "shiki": "^1.22.2"
+    "shiki": "^1.22.2",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
@@ -50,7 +52,8 @@
     "electron": "^32.0.0",
     "electron-builder": "^25.0.0",
     "typescript": "^5.4.5",
-    "vite": "^5.4.0"
+    "vite": "^5.4.0",
+    "vitest": "^2.1.9"
   },
   "build": {
     "appId": "ai.hermon.wishcode.desktop",
@@ -68,19 +71,46 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
-        { "target": "dmg", "arch": ["arm64", "x64"] },
-        { "target": "zip", "arch": ["arm64", "x64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icon.icns",
       "hardenedRuntime": false,
       "identity": null
     },
     "win": {
-      "target": [{ "target": "zip", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "build/icon.png"
     },
     "linux": {
-      "target": [{ "target": "AppImage", "arch": ["x64", "arm64"] }],
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
       "icon": "build/icon.png",
       "category": "Development"
     }
